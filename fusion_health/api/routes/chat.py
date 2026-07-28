@@ -20,13 +20,12 @@ _sessions: dict[str, ConversationSession] = {}
 _session_times: dict[str, float] = {}
 
 
-def _evict_oldest():
-    if len(_sessions) < MAX_SESSIONS:
-        return
-    oldest_sid = min(_session_times, key=_session_times.get)
-    _sessions.pop(oldest_sid, None)
-    _session_times.pop(oldest_sid, None)
-    logger.info("Evicted oldest chat session: %s", oldest_sid)
+def _evict_if_over():
+    while len(_sessions) > MAX_SESSIONS:
+        oldest_sid = min(_session_times, key=_session_times.get)
+        _sessions.pop(oldest_sid, None)
+        _session_times.pop(oldest_sid, None)
+        logger.info("Evicted oldest chat session: %s", oldest_sid)
 
 
 class ChatStartRequest(BaseModel):
@@ -45,12 +44,12 @@ class ChatSaveRequest(BaseModel):
 
 @router.post("/start")
 async def start_session(request: Request, body: ChatStartRequest) -> dict[str, Any]:
-    _evict_oldest()
     config = request.app.state.config
     session = ConversationSession(config)
     sid = session.start(session_id=body.session_id, system_prompt=body.system_prompt)
     _sessions[sid] = session
     _session_times[sid] = time.time()
+    _evict_if_over()
     return {"session_id": sid, "status": "started"}
 
 
