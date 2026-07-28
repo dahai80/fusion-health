@@ -28,11 +28,11 @@ class TCMAssistant:
             return
         try:
             with open(DATA_DIR / "syndromes.yaml", encoding="utf-8") as f:
-                self._syndromes = yaml.safe_load(f).get("syndromes", [])
+                self._syndromes = (yaml.safe_load(f) or {}).get("syndromes", [])
             with open(DATA_DIR / "formulas.yaml", encoding="utf-8") as f:
-                self._formulas = yaml.safe_load(f).get("formulas", [])
+                self._formulas = (yaml.safe_load(f) or {}).get("formulas", [])
             with open(DATA_DIR / "contraindications.yaml", encoding="utf-8") as f:
-                self._contraindications = yaml.safe_load(f)
+                self._contraindications = yaml.safe_load(f) or {}
             logger.info("Loaded %d syndromes, %d formulas", len(self._syndromes), len(self._formulas))
         except Exception as e:
             logger.error("Failed to load TCM data: %s", e)

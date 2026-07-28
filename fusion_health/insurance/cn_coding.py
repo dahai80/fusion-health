@@ -173,9 +173,18 @@ class CNMedicalCoder:
             return []
         codes = []
         try:
-            import json
-            from ..llm_gateway import LLMGateway
-            data = LLMGateway._parse_structured(result.content) if result.content else {}
+            data = {}
+            if result.content:
+                import json
+                text = result.content.strip()
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    text = "\n".join(lines)
+                data = json.loads(text)
             if not isinstance(data, dict):
                 data = {}
             for item in data.get("codes", []):
@@ -204,9 +213,18 @@ class CNMedicalCoder:
             logger.error("suggest_drg error: %s", result.error)
             return {"source": "ai", "results": []}
         try:
-            import json
-            from ..llm_gateway import LLMGateway
-            data = LLMGateway._parse_structured(result.content)
+            data = {}
+            if result.content:
+                import json
+                text = result.content.strip()
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    text = "\n".join(lines)
+                data = json.loads(text)
             if not isinstance(data, dict):
                 return {"source": "ai", "results": [], "raw": result.content}
             return {"source": "ai", "results": [data]}
