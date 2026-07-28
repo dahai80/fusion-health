@@ -9,12 +9,6 @@ class FHIRCodeableConcept(BaseModel):
     system: str = ""
 
 
-class FHIRCoding(BaseModel):
-    system: str = ""
-    code: str = ""
-    display: str = ""
-
-
 class FHIRResource(BaseModel):
     resourceType: str = ""
     id: str = ""

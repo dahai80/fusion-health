@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import logging
-from pathlib import Path
 from typing import Any
 
 from ..config import HealthConfig
