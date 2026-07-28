@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 
@@ -24,7 +25,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         key = request.headers.get("X-API-Key", "")
-        if key != api_key:
+        if not hmac.compare_digest(key, api_key):
             logger.warning("Unauthorized API access: %s %s", request.method, request.url.path)
             return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
 

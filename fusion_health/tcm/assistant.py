@@ -44,7 +44,8 @@ class TCMAssistant:
         for syndrome in self._syndromes:
             matched = [s for s in syndrome.get("symptoms", []) if s in symptoms]
             if matched:
-                score = len(matched) / len(syndrome.get("symptoms", []))
+                total = len(syndrome.get("symptoms", []))
+                score = len(matched) / total if total > 0 else 0.0
                 results.append({
                     "syndrome_id": syndrome["id"],
                     "name": syndrome["name"],

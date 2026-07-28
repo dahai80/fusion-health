@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import csv
+import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from ..config import HealthConfig
@@ -175,7 +175,6 @@ class CNMedicalCoder:
         try:
             data = {}
             if result.content:
-                import json
                 text = result.content.strip()
                 if text.startswith("```"):
                     lines = text.split("\n")
@@ -215,7 +214,6 @@ class CNMedicalCoder:
         try:
             data = {}
             if result.content:
-                import json
                 text = result.content.strip()
                 if text.startswith("```"):
                     lines = text.split("\n")

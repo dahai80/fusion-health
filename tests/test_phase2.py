@@ -173,10 +173,13 @@ class TestFHIRMapper:
         mapper = FHIRMapper()
         bundle = mapper.map_clinical_summary({
             "vitals": {"bp": "120/80"},
-            "diagnosis": "高血压",
+            "diagnoses": [{"code": "I10", "description": "高血压"}],
             "procedures": [{"code": "36.0701", "description": "支架置入"}],
         })
         assert len(bundle.entry) >= 3
+        condition_entries = [e for e in bundle.entry if e["resource"]["resourceType"] == "Condition"]
+        assert len(condition_entries) >= 1
+        assert condition_entries[0]["resource"]["code"]["code"] == "I10"
 
     def test_to_json(self):
         mapper = FHIRMapper()
@@ -199,6 +202,36 @@ class TestArtifactClient:
         result = await client.list_artifacts("session1")
         assert result == []
 
+    @pytest.mark.asyncio
+    async def test_create_success(self):
+        client = ArtifactClient(config=_make_config())
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"result": {"artifact_id": "art-1", "status": "created"}}
+        mock_response.raise_for_status = MagicMock()
+        mock_async_client = MagicMock()
+        mock_async_client.post = AsyncMock(return_value=mock_response)
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=False)
+        with patch("httpx.AsyncClient", return_value=mock_async_client):
+            result = await client.create("session1", "test", "content")
+            assert result is not None
+            assert result["artifact_id"] == "art-1"
+
+    @pytest.mark.asyncio
+    async def test_list_success(self):
+        client = ArtifactClient(config=_make_config())
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"result": [{"id": "art-1", "type": "note"}]}
+        mock_response.raise_for_status = MagicMock()
+        mock_async_client = MagicMock()
+        mock_async_client.post = AsyncMock(return_value=mock_response)
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=False)
+        with patch("httpx.AsyncClient", return_value=mock_async_client):
+            result = await client.list_artifacts("session1")
+            assert len(result) == 1
+            assert result[0]["id"] == "art-1"
+
 
 class TestHealthTools:
     @pytest.mark.asyncio
@@ -214,13 +247,29 @@ class TestHealthTools:
     async def test_icd10_tool(self):
         tool = ICD10CodingTool()
         assert tool.name == "icd10_cn_coding"
+        with patch("fusion_health.insurance.cn_coding.LLMGateway") as MockGW:
+            mock_gw = MagicMock()
+            mock_result = MagicMock(content='{"codes": []}', error=None, parsed=None)
+            mock_gw.chat = AsyncMock(return_value=mock_result)
+            MockGW.return_value = mock_gw
+            result = await tool.execute(diagnosis_text="hypertension")
+            assert isinstance(result, dict) or isinstance(result, list)
 
     @pytest.mark.asyncio
     async def test_tcm_tool(self):
         tool = TCMSyndromeTool()
         assert tool.name == "tcm_syndrome"
+        result = await tool.execute(symptoms="头痛眩晕")
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_compliance_tool(self):
         tool = ComplianceAuditTool()
         assert tool.name == "compliance_audit"
+        with patch("fusion_health.compliance.checker.LLMGateway") as MockGW:
+            mock_gw = MagicMock()
+            mock_result = MagicMock(content="{}", error=None, parsed=None)
+            mock_gw.chat = AsyncMock(return_value=mock_result)
+            MockGW.return_value = mock_gw
+            result = await tool.execute(clinical_note="test note")
+            assert isinstance(result, dict)

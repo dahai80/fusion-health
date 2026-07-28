@@ -87,7 +87,6 @@ class TestConversationSession:
 
         cfg = HealthConfig()
         session = ConversationSession(cfg)
-        session._gateway = mock_gw
         sid = session.start("sess-1")
         assert sid == "sess-1"
 
@@ -106,7 +105,6 @@ class TestConversationSession:
 
         cfg = HealthConfig()
         session = ConversationSession(cfg)
-        session._gateway = mock_gw
         session.start()
 
         asyncio.run(session.chat("Turn 1"))
