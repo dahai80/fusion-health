@@ -5,3 +5,6 @@ htmlcov/
 .venv/
 *.egg-info/
 .pytest_cache/
+CLAUDE.md
+claude-health-insight.md
+fusion-health-prd-ar-plan.md

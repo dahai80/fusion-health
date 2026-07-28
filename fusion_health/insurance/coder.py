@@ -1,74 +1,87 @@
-"""Insurance coder — ICD-10/CPT coding and insurance claim processing."""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-import httpx
+from ..config import HealthConfig
+from ..llm_gateway import LLMGateway
+from ..schemas.base import VerificationStatus
+from ..schemas.insurance import ICDCodeItem, ICDCodeResult, CPTCodeItem, CPTCodeResult, ClaimAuditResult
+from .icd_validator import ICDValidator
 
 logger = logging.getLogger(__name__)
 
 
 class InsuranceCoder:
-    """Medical coding and insurance claim assistance."""
-
-    def __init__(self, mlx_url: str = "http://localhost:11434/v1"):
-        self.mlx_url = mlx_url.rstrip("/")
+    def __init__(self, config: HealthConfig | None = None, mlx_url: str | None = None):
+        if config is None:
+            config = HealthConfig.from_env()
+        if mlx_url is not None:
+            config.mlx_url = mlx_url
+        self.config = config
+        self._gateway = LLMGateway(config)
+        self._validator = ICDValidator(config)
 
     async def suggest_icd_codes(self, diagnosis_text: str) -> list[dict[str, Any]]:
-        """Suggest ICD-10 diagnosis codes from clinical text."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Suggest ICD-10 diagnosis codes for: {diagnosis_text[:2000]}\n"
-                        f"Return as JSON array: [{{'code': 'I10', 'description': '...', 'confidence': 0.95}}]"
-                    )}],
-                    "max_tokens": 1024, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.strip().startswith("[") else []
-        except Exception:
-            return []
+        result = await self._gateway.chat(
+            messages=[{"role": "user", "content": (
+                f"Suggest ICD-10 diagnosis codes for: {diagnosis_text[:2000]}\n"
+                f"Return as JSON: {{'codes': [{{'code': 'I10', 'description': '...', 'status': 'ai_suggested'}}]}}"
+            )}],
+            max_tokens=1024,
+            response_schema=ICDCodeResult,
+        )
+        if result.parsed:
+            codes = [item.model_dump() for item in result.parsed.codes]
+            return self._annotate_with_validator(codes)
+        if result.error:
+            logger.error("suggest_icd_codes error: %s", result.error)
+        return []
+
+    def _annotate_with_validator(self, codes: list[dict]) -> list[dict]:
+        for item in codes:
+            code = item.get("code", "")
+            validation = self._validator.validate(code)
+            if validation["valid"]:
+                item["status"] = VerificationStatus.verified
+                item["description"] = validation["description"] or item.get("description", "")
+            else:
+                item["status"] = VerificationStatus.ai_suggested
+        return codes
 
     async def suggest_cpt_codes(self, procedure_text: str) -> list[dict[str, Any]]:
-        """Suggest CPT procedure codes."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Suggest CPT procedure codes for: {procedure_text[:2000]}\n"
-                        f"Return as JSON array: [{{'code': '99213', 'description': '...', 'confidence': 0.9}}]"
-                    )}],
-                    "max_tokens": 1024, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.strip().startswith("[") else []
-        except Exception:
-            return []
+        result = await self._gateway.chat(
+            messages=[{"role": "user", "content": (
+                f"Suggest CPT procedure codes for: {procedure_text[:2000]}\n"
+                f"Return as JSON: {{'codes': [{{'code': '99213', 'description': '...', 'status': 'ai_suggested'}}]}}"
+            )}],
+            max_tokens=1024,
+            response_schema=CPTCodeResult,
+        )
+        if result.parsed:
+            return [item.model_dump() for item in result.parsed.codes]
+        if result.error:
+            logger.error("suggest_cpt_codes error: %s", result.error)
+        return []
 
     async def audit_claim(self, claim_data: dict) -> dict[str, Any]:
-        """Audit an insurance claim for completeness and compliance."""
-        text = str(claim_data)[:3000]
+        import json
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Audit this insurance claim. Identify missing items, coding errors, "
-                        f"and compliance issues. Return as JSON with 'issues' array.\n\n{text}"
-                    )}],
-                    "max_tokens": 1024, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.startswith("{") else {"issues": [content]}
-        except Exception as e:
-            return {"error": str(e)}
+            text = json.dumps(claim_data, ensure_ascii=False)[:3000]
+        except Exception:
+            text = str(claim_data)[:3000]
+
+        result = await self._gateway.chat(
+            messages=[{"role": "user", "content": (
+                f"Audit this insurance claim. Identify missing items, coding errors, "
+                f"and compliance issues. Return as JSON with 'issues' array.\n\n{text}"
+            )}],
+            max_tokens=1024,
+            response_schema=ClaimAuditResult,
+        )
+        if result.parsed:
+            return result.parsed.model_dump()
+        if result.error:
+            logger.error("audit_claim error: %s", result.error)
+            return {"error": result.error, "raw": result.raw}
+        return {"issues": [result.content]}

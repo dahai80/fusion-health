@@ -1,0 +1,13 @@
+# 合规审核报告
+
+## 审核日期：{{ audit_date | default("今日") }}
+## 文档类型：{{ document_type | default("临床文档") }}
+
+## 规则检查结果
+{% for rule in rules_checked | default([]) %}
+- [{{ rule.status | upper }}] {{ rule.rule_id }}: {{ rule.rule_description }}
+  {% if rule.detail %}详情：{{ rule.detail }}{% endif %}
+{% endfor %}
+
+## 总体结论
+{% if overall_compliant %}✅ 合规{% else %}❌ 不合规{% endif %}
