@@ -1,0 +1,19 @@
+# 理赔审核报告
+
+## 理赔信息
+- 被保险人：{{ patient_name | default("未填写") }}
+- 保单号：{{ policy_number | default("未填写") }}
+- 理赔日期：{{ claim_date | default("未填写") }}
+
+## 诊断编码
+{% for code in icd_codes | default([]) %}
+- {{ code.code }}: {{ code.description }} ({{ code.status }})
+{% endfor %}
+
+## 审核结果
+{% for issue in issues | default([]) %}
+- [{{ issue.severity | default("info") }}] {{ issue.detail | default("") }}
+{% endfor %}
+
+## 结论
+{{ conclusion | default("审核完成") }}

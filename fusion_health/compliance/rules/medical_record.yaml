@@ -1,0 +1,33 @@
+name: "病历书写基本规范检查"
+version: "1.0"
+rules:
+  - id: "CN-MR-001"
+    description: "病历必须包含主诉"
+    type: "required"
+    fields: ["主诉", "chief complaint"]
+    severity: "critical"
+  - id: "CN-MR-002"
+    description: "病历必须包含现病史"
+    type: "required"
+    fields: ["现病史", "present illness"]
+    severity: "high"
+  - id: "CN-MR-003"
+    description: "病历必须包含体格检查"
+    type: "required"
+    fields: ["体格检查", "体检", "physical examination"]
+    severity: "high"
+  - id: "CN-MR-004"
+    description: "病历必须包含诊断"
+    type: "required"
+    fields: ["诊断", "diagnosis"]
+    severity: "critical"
+  - id: "CN-MR-005"
+    description: "病历必须包含处理意见"
+    type: "required"
+    fields: ["处理", "医嘱", "treatment", "plan"]
+    severity: "high"
+  - id: "CN-MR-006"
+    description: "病历必须包含医生签名"
+    type: "required"
+    fields: ["签名", "医师", "signature"]
+    severity: "medium"

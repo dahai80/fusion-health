@@ -8,7 +8,7 @@ Process medical records, generate clinical summaries, suggest ICD-10/CPT codes, 
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-18-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-128-success.svg)](tests/)
 
 [Quick Start](#quick-start) · [CLI Reference](#cli-reference) · [Architecture](#architecture) · [Documentation](docs/)
 
@@ -47,6 +47,9 @@ Process medical records, generate clinical summaries, suggest ICD-10/CPT codes, 
 git clone https://github.com/dahai80/fusion-health.git
 cd fusion-health
 pip install -e ".[test]"
+
+# For API server support
+pip install -e ".[api]"
 ```
 
 ### Process Medical Records
@@ -87,6 +90,93 @@ fusion-health literature "diabetes type 2 treatment guidelines" --max-results=10
 fusion-health compliance audit --input=clinical_note.txt
 ```
 
+### API Server
+
+```bash
+# Start the REST API server
+uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+
+# Or with API key protection
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+```
+
+### Multi-turn Chat
+
+```bash
+# Start interactive chat session
+fusion-health chat --system-prompt="You are a medical AI assistant"
+
+# Continue a saved session
+fusion-health chat --session=saved_session.json
+```
+
+### Batch Processing
+
+```bash
+# Process all .txt files in a directory
+fusion-health batch --dir=./cases --action=ehr_summary --output-dir=./results
+
+# Available actions: ehr_summary, ehr_vitals, code_icd10, compliance_audit, tcm_analyze
+# Control concurrency with --concurrency (default: 3)
+```
+
+### Template Rendering
+
+```bash
+# List available templates
+fusion-health template list
+
+# Render a template with data
+fusion-health template render discharge_summary --data='{"patient_name":"张三","diagnosis":"高血压","hospital_course":"降压治疗"}'
+
+# Initialize default templates in custom directory
+fusion-health template init --dir=./my_templates
+```
+
+### TUI (Terminal UI)
+
+```bash
+# Launch interactive terminal interface
+fusion-health tui
+```
+
+#### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/health` | Health check |
+| `POST` | `/api/v1/ehr/summary` | Generate clinical summary |
+| `POST` | `/api/v1/ehr/summary/stream` | SSE stream clinical summary |
+| `POST` | `/api/v1/ehr/discharge` | Generate discharge summary |
+| `POST` | `/api/v1/ehr/discharge/stream` | SSE stream discharge summary |
+| `POST` | `/api/v1/ehr/vitals` | Extract vital signs |
+| `POST` | `/api/v1/insurance/icd10` | Suggest ICD-10 codes |
+| `POST` | `/api/v1/insurance/icd10/stream` | SSE stream ICD-10 codes |
+| `POST` | `/api/v1/insurance/cpt` | Suggest CPT codes |
+| `POST` | `/api/v1/insurance/cpt/stream` | SSE stream CPT codes |
+| `POST` | `/api/v1/insurance/claim-audit` | Audit insurance claim |
+| `POST` | `/api/v1/insurance/drg` | Suggest DRG groups |
+| `POST` | `/api/v1/insurance/catalog` | Match insurance catalog |
+| `POST` | `/api/v1/insurance/procedure-codes` | Suggest procedure codes (ICD-9-CM-3) |
+| `POST` | `/api/v1/literature/search` | Search clinical literature |
+| `POST` | `/api/v1/literature/evidence` | Summarize evidence |
+| `POST` | `/api/v1/literature/evidence/stream` | SSE stream evidence summary |
+| `POST` | `/api/v1/compliance/audit` | Audit documentation |
+| `POST` | `/api/v1/compliance/audit/stream` | SSE stream audit |
+| `POST` | `/api/v1/compliance/regulatory` | Check regulatory compliance |
+| `POST` | `/api/v1/compliance/regulatory/stream` | SSE stream regulatory check |
+| `POST` | `/api/v1/tcm/analyze` | TCM full analysis |
+| `POST` | `/api/v1/tcm/analyze/stream` | SSE stream TCM analysis |
+| `POST` | `/api/v1/tcm/syndrome` | Identify TCM syndromes |
+| `POST` | `/api/v1/tcm/formula` | Recommend TCM formulas |
+| `POST` | `/api/v1/tcm/contraindications` | Check herb contraindications |
+| `POST` | `/api/v1/chat/start` | Start chat session |
+| `POST` | `/api/v1/chat/message` | Send chat message |
+| `POST` | `/api/v1/chat/message/stream` | SSE stream chat response |
+| `POST` | `/api/v1/chat/save` | Save chat session |
+| `GET` | `/api/v1/chat/sessions` | List active sessions |
+| `DELETE` | `/api/v1/chat/sessions/{id}` | Delete chat session |
+
 ---
 
 ## CLI Reference
@@ -102,6 +192,12 @@ fusion-health compliance audit --input=clinical_note.txt
 | `literature <query> [--max-results]` | Search clinical literature |
 | `compliance audit --input` | Audit clinical documentation |
 | `compliance regulatory --input --type` | Check regulatory compliance |
+| `chat [--session] [--system-prompt]` | Interactive multi-turn chat |
+| `batch --dir --action [--output-dir] [--concurrency]` | Batch process files |
+| `template list` | List available templates |
+| `template render <name> --data` | Render template with data |
+| `template init [--dir]` | Initialize default templates |
+| `tui` | Launch terminal UI |
 | `version` | Show version |
 
 ---
@@ -110,8 +206,8 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Fusion-Health CLI                             │
-│  ehr · code · literature · compliance                           │
+│              Fusion-Health Interface Layer                       │
+│  CLI · TUI · Chat · Batch · Template · API (FastAPI REST + SSE)  │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
@@ -122,11 +218,22 @@ fusion-health compliance audit --input=clinical_note.txt
 │  │ · summaries    │  │ · ICD-10 codes │  │ · clinical search │  │
 │  │ · discharge    │  │ · CPT codes    │  │ · evidence summary│  │
 │  │ · vitals       │  │ · claim audit  │  │                  │  │
-│  └────────────────┘  └────────────────┘  └──────────────────┘  │
+│  │ + FHIRMapper   │  │ + ICDValidator │  │ + PubMedClient   │  │
+│  └────────────────┘  └────────────────┘  │ + SemanticScholar│  │
+│                                           └──────────────────┘  │
+│  ┌──────────────────────┐  ┌─────────────────────────────────┐ │
+│  │ ComplianceChecker    │  │ TCMAssistant                    │ │
+│  │ + RuleEngine         │  │ · syndrome · formula · 十八反   │ │
+│  └──────────────────────┘  └─────────────────────────────────┘ │
+│                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐ │
+│  │ ConversationMem  │  │ BatchProcessor   │  │ TemplateEngine│ │
+│  │ · multi-turn     │  │ · concurrency    │  │ · Jinja2      │ │
+│  │ · save/load      │  │ · 5 actions      │  │ · 3 builtins  │ │
+│  └──────────────────┘  └──────────────────┘  └───────────────┘ │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │ ComplianceChecker                                         │  │
-│  │ · documentation audit · regulatory compliance check       │  │
+│  │ LLMGateway · HealthConfig · Pydantic Schemas · SSE Stream │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └───────────────────────────┬─────────────────────────────────────┘
                             │ HTTP API

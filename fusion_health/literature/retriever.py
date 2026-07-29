@@ -1,101 +1,80 @@
-"""Literature retriever — clinical literature search and evidence-based medicine support."""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-import httpx
+from ..config import HealthConfig
+from ..llm_gateway import LLMGateway
+from ..schemas.literature import LiteratureItem, LiteratureSearchResult
+from .pubmed_client import PubMedClient
+from .semantic_scholar import SemanticScholarClient
 
 logger = logging.getLogger(__name__)
 
 
 class LiteratureRetriever:
-    """Clinical literature search and evidence-based medicine retrieval."""
-
-    def __init__(self, mlx_url: str = "http://localhost:11434/v1"):
-        self.mlx_url = mlx_url.rstrip("/")
+    def __init__(self, config: HealthConfig | None = None, mlx_url: str | None = None):
+        if config is None:
+            config = HealthConfig.from_env()
+        if mlx_url is not None:
+            config.mlx_url = mlx_url
+        self.config = config
+        self._gateway = LLMGateway(config)
+        self._pubmed = PubMedClient(timeout=config.timeout)
+        self._s2 = SemanticScholarClient(timeout=config.timeout)
 
     async def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
-        """Search clinical literature by query."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Search clinical literature for: {query}\n"
-                        f"Return {max_results} relevant studies as JSON array: "
-                        f"[{{'title': str, 'authors': str, 'journal': str, 'year': int, 'summary': str}}]"
-                    )}],
-                    "max_tokens": 2048, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.strip().startswith("[") else []
-        except Exception:
-            return []
+        real_results = await self._fetch_real_sources(query, max_results)
+        if real_results:
+            return real_results
+        logger.info("No real literature sources available, falling back to LLM")
+        return await self._search_via_llm(query, max_results)
+
+    async def _fetch_real_sources(self, query: str, max_results: int) -> list[dict[str, Any]]:
+        results = []
+        if self.config.pubmed_enabled:
+            try:
+                pubmed = await self._pubmed.search(query, max_results=max_results)
+                results.extend(pubmed)
+            except Exception as e:
+                logger.warning("PubMed fetch failed: %s", e)
+        if len(results) < max_results and self.config.semantic_scholar_enabled:
+            try:
+                s2 = await self._s2.search(query, max_results=max_results - len(results))
+                seen_dois = {r.get("doi", "") for r in results if r.get("doi")}
+                for item in s2:
+                    if item.get("doi") not in seen_dois:
+                        results.append(item)
+            except Exception as e:
+                logger.warning("Semantic Scholar fetch failed: %s", e)
+        return results[:max_results]
+
+    async def _search_via_llm(self, query: str, max_results: int) -> list[dict[str, Any]]:
+        result = await self._gateway.chat(
+            messages=[{"role": "user", "content": (
+                f"Search clinical literature for: {query}\n"
+                f"Return {max_results} relevant studies as JSON: "
+                f"{{'results': [{{'title': str, 'authors': str, 'journal': str, 'year': int, 'summary': str}}]}}"
+            )}],
+            max_tokens=2048,
+            response_schema=LiteratureSearchResult,
+        )
+        if result.parsed:
+            return [item.model_dump() for item in result.parsed.results]
+        if result.error:
+            logger.error("search error: %s", result.error)
+        return []
 
     async def summarize_evidence(self, topic: str, literature: list[dict]) -> str:
-        """Summarize clinical evidence for a topic."""
         lit_text = "\n".join(f"- {l.get('title', '?')}: {l.get('summary', '')[:200]}" for l in literature[:10])
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Summarize clinical evidence for: {topic}\n\nLiterature:\n{lit_text}\n\n"
-                        f"Provide evidence-based recommendations with citations."
-                    )}],
-                    "max_tokens": 2048, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            return f"Error: {e}"
-
-
-class ComplianceChecker:
-    """Medical compliance checking — documentation audit, regulation compliance."""
-
-    def __init__(self, mlx_url: str = "http://localhost:11434/v1"):
-        self.mlx_url = mlx_url.rstrip("/")
-
-    async def audit_documentation(self, clinical_note: str) -> dict[str, Any]:
-        """Audit clinical documentation for completeness and compliance."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Audit this clinical note for: 1) completeness, 2) missing elements, "
-                        f"3) coding accuracy, 4) regulatory compliance. "
-                        f"Return as JSON with 'issues' array.\n\n{clinical_note[:4000]}"
-                    )}],
-                    "max_tokens": 2048, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.startswith("{") else {"issues": [content]}
-        except Exception as e:
-            return {"error": str(e)}
-
-    async def check_regulatory_compliance(self, document_type: str, content: str) -> dict[str, Any]:
-        """Check document compliance with healthcare regulations."""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                resp = await client.post(f"{self.mlx_url}/chat/completions", json={
-                    "model": "qwen3.5-9b",
-                    "messages": [{"role": "user", "content": (
-                        f"Check this {document_type} for regulatory compliance. "
-                        f"Identify any compliance gaps or risks. "
-                        f"Return as JSON with 'compliant' bool and 'issues' array.\n\n{content[:3000]}"
-                    )}],
-                    "max_tokens": 2048, "temperature": 0.1,
-                })
-                resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                import json
-                return json.loads(content) if content.startswith("{") else {"compliant": False, "issues": [content]}
-        except Exception as e:
-            return {"error": str(e)}
+        result = await self._gateway.chat(
+            messages=[{"role": "user", "content": (
+                f"Summarize clinical evidence for: {topic}\n\nLiterature:\n{lit_text}\n\n"
+                f"Provide evidence-based recommendations with citations."
+            )}],
+            max_tokens=2048,
+        )
+        if result.error:
+            logger.error("summarize_evidence error: %s", result.error)
+            return f"Error: {result.error}"
+        return result.content

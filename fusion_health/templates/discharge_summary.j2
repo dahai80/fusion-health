@@ -1,0 +1,19 @@
+# 出院小结
+
+## 患者信息
+- 姓名：{{ patient_name | default("未填写") }}
+- 住院号：{{ admission_id | default("未填写") }}
+- 入院日期：{{ admission_date | default("未填写") }}
+- 出院日期：{{ discharge_date | default("未填写") }}
+
+## 诊断
+{{ diagnosis | default("未填写") }}
+
+## 住院经过
+{{ hospital_course | default("未填写") }}
+
+## 出院医嘱
+{{ discharge_meds | default("未填写") }}
+
+## 随访计划
+{{ follow_up | default("未填写") }}
