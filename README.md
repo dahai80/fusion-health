@@ -12,6 +12,8 @@ Process medical records, generate clinical summaries, suggest ICD-10/CPT codes, 
 
 [Quick Start](#quick-start) · [CLI Reference](#cli-reference) · [Architecture](#architecture) · [Documentation](docs/)
 
+English | **[中文](README_CN.md)**
+
 </div>
 
 ---

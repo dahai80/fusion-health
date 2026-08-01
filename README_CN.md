@@ -2,11 +2,17 @@
 
 # Fusion-Health
 
-**本地 AI 医疗辅助平台 — 由 fusion-mlx 驱动**
+**本地 AI 医疗助手 — 由 fusion-mlx 驱动**
 
-处理病历、生成临床摘要、建议 ICD-10/CPT 编码、搜索临床文献、检查合规——完全本地运行，数据不出设备。
+处理医疗记录、生成临床摘要、推荐 ICD-10/CPT 编码、检索临床文献、合规检查 — 全部本地运行，数据不离设备。
 
-[English](README.md) · [快速开始](#快速开始) · [CLI 参考](#cli-参考) · [架构](#架构) · [文档](docs/)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-138-success.svg)](tests/)
+
+[快速开始](#快速开始) · [CLI 参考](#cli-参考) · [架构](#架构) · [文档](docs/)
+
+**[English](README.md)** | 中文
 
 </div>
 
@@ -17,20 +23,25 @@
 | 特性 | Fusion-Health | Claude Health |
 |------|--------------|--------------|
 | **本地离线** | ✅ 100% 本地 | ❌ 仅云端 |
-| **数据隐私** | ✅ 患者数据不出设备 | ❌ 数据上传海外 |
-| **国内合规** | ✅ 完全合规 | ❌ 违反《个人信息保护法》 |
-| **零费用** | ✅ | ❌ 企业订阅付费 |
-| **病历处理** | ✅ 摘要/出院/生命体征 | ✅ |
+| **数据隐私** | ✅ PHI 不离设备 | ❌ 数据上传至云端 |
+| **中国合规** | ✅ 完全合规 | ❌ 违反 PIPL |
+| **零 API 费用** | ✅ | ❌ 企业订阅 |
+| **EHR 处理** | ✅ 摘要、出院、体征 | ✅ |
 | **ICD-10/CPT 编码** | ✅ AI 辅助编码 | ✅ |
-| **文献检索** | ✅ 循证医学检索 | ✅ |
-| **合规审计** | ✅ 文档合规检查 | ✅ |
-| **中文医疗支持** | ✅ 原生中文 | ❌ 有限 |
+| **文献检索** | ✅ 循证检索 | ✅ |
+| **合规审计** | ✅ 文档审计 | ✅ |
+| **中医支持** | ✅ 原生中文 | ❌ 有限 |
 
-**一句话：** Fusion-Health 是 Claude Health 的本地优先、隐私合规替代方案——由 fusion-mlx 在 Apple Silicon 上驱动。
+**一句话：** Fusion-Health 是 Claude Health 的本地优先、隐私合规替代方案 — 基于 Apple Silicon 上的 fusion-mlx 运行。
 
 ---
 
 ## 快速开始
+
+### 前置条件
+
+- macOS Apple Silicon (M1–M5)，Python 3.12+
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) 运行在 `localhost:11434`
 
 ### 安装
 
@@ -38,31 +49,34 @@
 git clone https://github.com/dahai80/fusion-health.git
 cd fusion-health
 pip install -e ".[test]"
+
+# 如需 API 服务器支持
+pip install -e ".[api]"
 ```
 
-### 处理病历
+### 处理医疗记录
 
 ```bash
 # 生成临床摘要
 fusion-health ehr summary --input=clinical_notes.txt --output=summary.json
 
-# 生成出院小结
+# 生成出院摘要
 fusion-health ehr discharge --input=admission_notes.txt --output=discharge.md
 
 # 提取生命体征
 fusion-health ehr vitals --input=progress_notes.txt
 ```
 
-### 医保编码
+### 医疗编码
 
 ```bash
-# 建议 ICD-10 诊断编码
-fusion-health code icd10 --input="高血压伴糖尿病患者"
+# 推荐 ICD-10 编码
+fusion-health code icd10 --input="患者患有高血压和糖尿病"
 
-# 建议 CPT 手术编码
-fusion-health code cpt --input="普通门诊三级"
+# 推荐 CPT 编码
+fusion-health code cpt --input="Office visit, level 3"
 
-# 审计理赔申请
+# 审计保险理赔
 fusion-health code audit --input=claim_data.txt
 ```
 
@@ -78,21 +92,158 @@ fusion-health literature "2型糖尿病治疗指南" --max-results=10
 fusion-health compliance audit --input=clinical_note.txt
 ```
 
+### API 服务器
+
+```bash
+# 启动 REST API 服务器
+uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+
+# 带 API Key 保护启动
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+```
+
+### 多轮对话
+
+```bash
+# 启动交互式对话
+fusion-health chat --system-prompt="你是一个医疗AI助手"
+
+# 继续已保存的会话
+fusion-health chat --session=saved_session.json
+```
+
+### 批量处理
+
+```bash
+# 处理目录下所有 .txt 文件
+fusion-health batch --dir=./cases --action=ehr_summary --output-dir=./results
+
+# 可用动作: ehr_summary, ehr_vitals, code_icd10, compliance_audit, tcm_analyze
+# 用 --concurrency 控制并发数（默认: 3）
+```
+
+### 模板渲染
+
+```bash
+# 列出可用模板
+fusion-health template list
+
+# 用数据渲染模板
+fusion-health template render discharge_summary --data='{"patient_name":"张三","diagnosis":"高血压","hospital_course":"降压治疗"}'
+
+# 在自定义目录初始化默认模板
+fusion-health template init --dir=./my_templates
+```
+
+### TUI（终端界面）
+
+```bash
+# 启动交互式终端界面
+fusion-health tui
+```
+
+#### API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/v1/health` | 健康检查 |
+| `POST` | `/api/v1/ehr/summary` | 生成临床摘要 |
+| `POST` | `/api/v1/ehr/summary/stream` | SSE 流式临床摘要 |
+| `POST` | `/api/v1/ehr/discharge` | 生成出院摘要 |
+| `POST` | `/api/v1/ehr/discharge/stream` | SSE 流式出院摘要 |
+| `POST` | `/api/v1/ehr/vitals` | 提取生命体征 |
+| `POST` | `/api/v1/insurance/icd10` | 推荐 ICD-10 编码 |
+| `POST` | `/api/v1/insurance/icd10/stream` | SSE 流式 ICD-10 编码 |
+| `POST` | `/api/v1/insurance/cpt` | 推荐 CPT 编码 |
+| `POST` | `/api/v1/insurance/cpt/stream` | SSE 流式 CPT 编码 |
+| `POST` | `/api/v1/insurance/claim-audit` | 审计保险理赔 |
+| `POST` | `/api/v1/insurance/drg` | 推荐 DRG 分组 |
+| `POST` | `/api/v1/insurance/catalog` | 匹配医保目录 |
+| `POST` | `/api/v1/insurance/procedure-codes` | 推荐手术编码 (ICD-9-CM-3) |
+| `POST` | `/api/v1/literature/search` | 检索临床文献 |
+| `POST` | `/api/v1/literature/evidence` | 循证摘要 |
+| `POST` | `/api/v1/literature/evidence/stream` | SSE 流式循证摘要 |
+| `POST` | `/api/v1/compliance/audit` | 审计文档合规 |
+| `POST` | `/api/v1/compliance/audit/stream` | SSE 流式合规审计 |
+| `POST` | `/api/v1/compliance/regulatory` | 检查法规合规 |
+| `POST` | `/api/v1/compliance/regulatory/stream` | SSE 流式法规检查 |
+| `POST` | `/api/v1/tcm/analyze` | 中医完整分析 |
+| `POST` | `/api/v1/tcm/analyze/stream` | SSE 流式中医分析 |
+| `POST` | `/api/v1/tcm/syndrome` | 中医辨证 |
+| `POST` | `/api/v1/tcm/formula` | 推荐方剂 |
+| `POST` | `/api/v1/tcm/contraindications` | 检查中药配伍禁忌 |
+| `POST` | `/api/v1/chat/start` | 开始对话会话 |
+| `POST` | `/api/v1/chat/message` | 发送对话消息 |
+| `POST` | `/api/v1/chat/message/stream` | SSE 流式对话响应 |
+| `POST` | `/api/v1/chat/save` | 保存对话会话 |
+| `GET` | `/api/v1/chat/sessions` | 列出活跃会话 |
+| `DELETE` | `/api/v1/chat/sessions/{id}` | 删除对话会话 |
+
 ---
 
 ## CLI 参考
 
 | 命令 | 说明 |
 |------|------|
-| `ehr summary --input` | 生成结构化临床摘要 |
-| `ehr discharge --input` | 生成出院小结 |
+| `ehr summary --input [--output]` | 生成结构化临床摘要 |
+| `ehr discharge --input [--output]` | 生成出院摘要 |
 | `ehr vitals --input` | 提取生命体征 |
-| `code icd10 --input` | 建议 ICD-10 诊断编码 |
-| `code cpt --input` | 建议 CPT 手术编码 |
-| `code audit --input` | 审计理赔申请 |
-| `literature <query> [--max-results]` | 搜索临床文献 |
+| `code icd10 --input` | 推荐 ICD-10 诊断编码 |
+| `code cpt --input` | 推荐 CPT 手术编码 |
+| `code audit --input` | 审计保险理赔 |
+| `literature <query> [--max-results]` | 检索临床文献 |
 | `compliance audit --input` | 审计临床文档 |
-| `compliance regulatory --input --type` | 检查法规合规性 |
+| `compliance regulatory --input --type` | 检查法规合规 |
+| `chat [--session] [--system-prompt]` | 交互式多轮对话 |
+| `batch --dir --action [--output-dir] [--concurrency]` | 批量处理文件 |
+| `template list` | 列出可用模板 |
+| `template render <name> --data` | 用数据渲染模板 |
+| `template init [--dir]` | 初始化默认模板 |
+| `tui` | 启动终端界面 |
+| `version` | 显示版本 |
+
+---
+
+## 架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              Fusion-Health 接口层                                 │
+│  CLI · TUI · Chat · Batch · Template · API (FastAPI REST + SSE)  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────────────┐
+│                     核心引擎                                     │
+│                                                                  │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐  │
+│  │ EHRProcessor   │  │ InsuranceCoder │  │ LiteratureRetriever│ │
+│  │ · 摘要         │  │ · ICD-10 编码  │  │ · 临床检索        │  │
+│  │ · 出院         │  │ · CPT 编码     │  │ · 循证摘要        │  │
+│  │ · 体征         │  │ · 理赔审计     │  │                  │  │
+│  │ + FHIRMapper   │  │ + ICDValidator │  │ + PubMedClient   │  │
+│  └────────────────┘  └────────────────┘  │ + SemanticScholar│  │
+│                                           └──────────────────┘  │
+│  ┌──────────────────────┐  ┌─────────────────────────────────┐ │
+│  │ ComplianceChecker    │  │ TCMAssistant                    │ │
+│  │ + RuleEngine         │  │ · 辨证 · 方剂 · 十八反          │ │
+│  └──────────────────────┘  └─────────────────────────────────┘ │
+│                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐ │
+│  │ ConversationMem  │  │ BatchProcessor   │  │ TemplateEngine│ │
+│  │ · 多轮对话       │  │ · 并发控制       │  │ · Jinja2      │ │
+│  │ · 保存/加载      │  │ · 5 种动作       │  │ · 3 个内置    │ │
+│  └──────────────────┘  └──────────────────┘  └───────────────┘ │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ LLMGateway · HealthConfig · Pydantic Schemas · SSE Stream │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTP API
+┌───────────────────────────▼─────────────────────────────────────┐
+│                    fusion-mlx (/v1/chat/completions)              │
+│                    Apple Silicon MLX 运行时                      │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -100,8 +251,8 @@ fusion-health compliance audit --input=clinical_note.txt
 
 | 能力 | Claude Health | Fusion-Health |
 |------|-------------|--------------|
-| 病历摘要 | ✅ | ✅ |
-| 出院小结 | ✅ | ✅ |
+| EHR 临床摘要 | ✅ | ✅ |
+| 出院摘要 | ✅ | ✅ |
 | 生命体征提取 | ✅ | ✅ |
 | ICD-10 编码 | ✅ | ✅ |
 | CPT 编码 | ✅ | ✅ |
@@ -109,9 +260,20 @@ fusion-health compliance audit --input=clinical_note.txt
 | 文献检索 | ✅ | ✅ |
 | 循证摘要 | ✅ | ✅ |
 | 文档审计 | ✅ | ✅ |
-| 合规检查 | ✅ | ✅ |
+| 法规合规 | ✅ | ✅ |
 | **本地离线** | ❌ 仅云端 | ✅ **100% 本地** |
-| **数据隐私** | ❌ 数据上传 | ✅ **数据不出设备** |
-| **国内合规** | ❌ 违法 | ✅ **完全合规** |
-| **零费用** | ❌ 企业订阅 | ✅ **免费** |
-| **中文医疗** | ❌ 有限 | ✅ **原生** |
+| **数据隐私** | ❌ PHI 上传 | ✅ **数据不离设备** |
+| **中国合规** | ❌ 违反 PIPL | ✅ **完全合规** |
+| **零 API 费用** | ❌ 企业订阅 | ✅ **免费** |
+| **中医支持** | ❌ 有限 | ✅ **原生支持** |
+
+---
+
+## 许可证
+
+MIT
+
+## 致谢
+
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) — Apple Silicon 模型服务
+- [Claude Health](https://www.anthropic.com/healthcare) — 参考架构
