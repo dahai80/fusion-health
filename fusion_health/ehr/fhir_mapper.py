@@ -8,7 +8,7 @@ from typing import Any
 
 from ..schemas.fhir import (
     FHIRBundle, FHIRCodeableConcept, FHIRCondition, FHIRObservation,
-    FHIRPatient, FHIRProcedure, FHIRMedicationRequest,
+    FHIRProcedure, FHIRMedicationRequest,
 )
 
 logger = logging.getLogger(__name__)

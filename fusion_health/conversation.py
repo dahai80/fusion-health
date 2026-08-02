@@ -4,7 +4,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any
 
 from .config import HealthConfig
 from .llm_gateway import LLMGateway

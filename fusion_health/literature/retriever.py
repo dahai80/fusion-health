@@ -5,7 +5,7 @@ from typing import Any
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
-from ..schemas.literature import LiteratureItem, LiteratureSearchResult
+from ..schemas.literature import LiteratureSearchResult
 from .pubmed_client import PubMedClient
 from .semantic_scholar import SemanticScholarClient
 
@@ -66,7 +66,7 @@ class LiteratureRetriever:
         return []
 
     async def summarize_evidence(self, topic: str, literature: list[dict]) -> str:
-        lit_text = "\n".join(f"- {l.get('title', '?')}: {l.get('summary', '')[:200]}" for l in literature[:10])
+        lit_text = "\n".join(f"- {item.get('title', '?')}: {item.get('summary', '')[:200]}" for item in literature[:10])
         result = await self._gateway.chat(
             messages=[{"role": "user", "content": (
                 f"Summarize clinical evidence for: {topic}\n\nLiterature:\n{lit_text}\n\n"

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.table import Table
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Footer, Header, Input, Static
@@ -73,7 +70,7 @@ class FusionHealthTUI(App):
         if btn_id.startswith("btn-"):
             self._current_action = btn_id[4:]
             _, label, desc = next(
-                (a, l, d) for a, l, d in MENU_ITEMS if a == self._current_action
+                (a, lbl, d) for a, lbl, d in MENU_ITEMS if a == self._current_action
             )
             result = self.query_one("#result-area", ResultDisplay)
             result.update(Panel(f"已选择: {label}\n{desc}\n\n在下方输入内容后按 Enter 执行", title="操作"))

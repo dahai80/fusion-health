@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from fusion_health.config import HealthConfig
-from fusion_health.llm_gateway import LLMGateway
 from fusion_health.schemas.base import LLMResult, VerificationStatus
 from fusion_health.insurance.cn_coding import ICD9CM3Validator, DRGHelper, InsuranceCatalogMatcher, CNMedicalCoder
 from fusion_health.tcm.assistant import TCMAssistant

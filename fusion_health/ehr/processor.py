@@ -5,8 +5,7 @@ from typing import Any
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
-from ..schemas.base import LLMResult
-from ..schemas.ehr import ClinicalSummary, DischargeSummary, VitalsResult
+from ..schemas.ehr import ClinicalSummary, VitalsResult
 
 logger = logging.getLogger(__name__)
 

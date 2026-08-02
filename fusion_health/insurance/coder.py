@@ -6,7 +6,7 @@ from typing import Any
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
 from ..schemas.base import VerificationStatus
-from ..schemas.insurance import ICDCodeItem, ICDCodeResult, CPTCodeItem, CPTCodeResult, ClaimAuditResult
+from ..schemas.insurance import ICDCodeResult, CPTCodeResult, ClaimAuditResult
 from .icd_validator import ICDValidator
 
 logger = logging.getLogger(__name__)

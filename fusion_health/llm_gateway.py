@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
 
 import httpx
 
@@ -136,7 +135,7 @@ class LLMGateway:
             logger.warning("JSON decode failed: %s, raw: %s", e, content[:200])
             return LLMResult(
                 content=content,
-                error=f"schema_validation_failed: json_decode_error",
+                error="schema_validation_failed: json_decode_error",
                 raw=content,
                 model=model,
             )
