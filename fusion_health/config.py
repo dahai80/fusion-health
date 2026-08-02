@@ -20,7 +20,7 @@ class HealthConfig:
     data_dir: Path = field(default_factory=lambda: Path(__file__).parent / "data")
     rules_dir: Path = field(default_factory=lambda: Path(__file__).parent / "compliance" / "rules")
     templates_dir: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "templates")
-    artifacts_url: str = "http://localhost:8892"
+    artifacts_url: str = "http://localhost:11451"
     literature_cache_dir: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "lit_cache")
     pubmed_enabled: bool = True
     semantic_scholar_enabled: bool = True
