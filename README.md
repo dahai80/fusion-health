@@ -7,7 +7,7 @@
 Process medical records, generate clinical summaries, suggest ICD-10/CPT codes, search clinical literature, and check compliance — entirely local, no data leaves your device.
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-128-success.svg)](tests/)
 
 [Quick Start](#quick-start) · [CLI Reference](#cli-reference) · [Architecture](#architecture) · [Documentation](docs/)
@@ -271,7 +271,7 @@ fusion-health tui
 
 ## License
 
-MIT
+[Apache License 2.0](LICENSE)
 
 ## Acknowledgments
 
