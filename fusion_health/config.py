@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class HealthConfig:
-    mlx_url: str = "http://localhost:11434/v1"
+    mlx_url: str = "http://localhost:11432/v1"
     model: str = "qwen3.5-9b"
     temperature: float = 0.1
     max_tokens: int = 2048

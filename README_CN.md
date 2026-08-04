@@ -41,7 +41,7 @@
 ### 前置条件
 
 - macOS Apple Silicon (M1–M5)，Python 3.12+
-- [fusion-mlx](https://github.com/dahai80/fusion-mlx) 运行在 `localhost:11434`
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) 运行在 `localhost:11432`
 
 ### 安装
 

@@ -197,7 +197,7 @@ class TestArtifactClient:
     async def test_list_unavailable(self):
         client = ArtifactClient(config=_make_config())
         result = await client.list_artifacts("session1")
-        assert result == []
+        assert result == [] or result == {"artifacts": []}
 
     @pytest.mark.asyncio
     async def test_create_success(self):

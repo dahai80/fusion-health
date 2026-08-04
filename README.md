@@ -41,7 +41,7 @@ English | **[中文](README_CN.md)**
 ### Prerequisites
 
 - macOS with Apple Silicon (M1–M5), Python 3.12+
-- [fusion-mlx](https://github.com/dahai80/fusion-mlx) running on `localhost:11434`
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) running on `localhost:11432`
 
 ### Install
 
