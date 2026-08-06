@@ -96,10 +96,10 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```bash
 # Start the REST API server
-uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
 
 # Or with API key protection
-FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 8000
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
 ```
 
 ### Multi-turn Chat

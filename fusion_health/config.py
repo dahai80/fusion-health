@@ -21,6 +21,7 @@ class HealthConfig:
     rules_dir: Path = field(default_factory=lambda: Path(__file__).parent / "compliance" / "rules")
     templates_dir: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "templates")
     artifacts_url: str = "http://localhost:11451"
+    api_port: int = 11453
     literature_cache_dir: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "lit_cache")
     pubmed_enabled: bool = True
     semantic_scholar_enabled: bool = True
@@ -36,6 +37,7 @@ class HealthConfig:
             "FUSION_HEALTH_MAX_TOKENS": ("max_tokens", int),
             "FUSION_HEALTH_TIMEOUT": ("timeout", float),
             "FUSION_ARTIFACTS_URL": ("artifacts_url", str),
+            "FUSION_HEALTH_API_PORT": ("api_port", int),
         }
         for env_key, (attr, cast) in env_map.items():
             val = os.getenv(env_key)
