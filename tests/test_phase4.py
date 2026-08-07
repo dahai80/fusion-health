@@ -7,6 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import os
+os.environ.setdefault("FUSION_HEALTH_API_KEY", "test-key-123")
+
 from fusion_health.config import HealthConfig
 from fusion_health.conversation import ConversationMemory, ConversationSession
 from fusion_health.templates import TemplateEngine
@@ -235,7 +238,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         resp = client.post("/api/v1/chat/start", json={"session_id": "test-sess"})
         assert resp.status_code == 200
         data = resp.json()
@@ -253,7 +256,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
 
         client.post("/api/v1/chat/start", json={"session_id": "msg-test"})
         resp = client.post("/api/v1/chat/message", json={
@@ -266,7 +269,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         resp = client.post("/api/v1/chat/message", json={
             "session_id": "nonexistent",
             "message": "test",
@@ -278,7 +281,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         resp = client.get("/api/v1/chat/sessions")
         assert resp.status_code == 200
         assert "sessions" in resp.json()
@@ -287,7 +290,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         client.post("/api/v1/chat/start", json={"session_id": "del-test"})
         resp = client.delete("/api/v1/chat/sessions/del-test")
         assert resp.status_code == 200
@@ -297,7 +300,7 @@ class TestChatAPIRoutes:
         from fusion_health.api.app import create_app
         from starlette.testclient import TestClient
         app = create_app(HealthConfig())
-        client = TestClient(app)
+        client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         resp = client.delete("/api/v1/chat/sessions/no-such-session")
         assert resp.status_code == 200
         assert resp.json()["error"] == "session_not_found"
