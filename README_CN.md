@@ -41,7 +41,7 @@
 ### 前置条件
 
 - macOS Apple Silicon (M1–M5)，Python 3.12+
-- [fusion-mlx](https://github.com/dahai80/fusion-mlx) 运行在 `localhost:11432`
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) 运行在 `localhost:11434`（默认模型 `Qwen3.5-9B-4bit`）
 
 ### 安装
 
@@ -114,6 +114,18 @@ FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0
 ```
 
 通过环境变量覆盖默认值：`FUSION_HEALTH_PORT`、`FUSION_HEALTH_HOST`。
+
+### fusion-mlx 对接
+
+fusion-mlx 要求路由头与 API key。fusion-health 从配置自动发送；按环境覆盖：
+
+```bash
+export FUSION_HEALTH_MLX_URL=http://localhost:11434/v1      # fusion-mlx 实际端口
+export FUSION_HEALTH_MLX_API_KEY=<your-fusion-mlx-key>      # 见 ~/.fusion-mlx/settings.json
+export FUSION_HEALTH_MLX_ROUTE=chat                          # X-Fusion-Route 头值
+```
+
+> 注：仓库内配置默认端口为 `11432`（历史 issue #6），但 fusion-mlx 实际监听 `11434`。真实对接请按上设置 `FUSION_HEALTH_MLX_URL`。上游跟踪：[fusion-mlx#403](https://github.com/dahai80/fusion-mlx/issues/403)。
 
 ### 多轮对话
 

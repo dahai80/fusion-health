@@ -41,7 +41,7 @@ English | **[中文](README_CN.md)**
 ### Prerequisites
 
 - macOS with Apple Silicon (M1–M5), Python 3.12+
-- [fusion-mlx](https://github.com/dahai80/fusion-mlx) running on `localhost:11432`
+- [fusion-mlx](https://github.com/dahai80/fusion-mlx) running on `localhost:11434` (default model `Qwen3.5-9B-4bit`)
 
 ### Install
 
@@ -114,6 +114,18 @@ Background-detach start/stop/status for fusion-studio integration — port 11456
 ```
 
 Override defaults via env: `FUSION_HEALTH_PORT`, `FUSION_HEALTH_HOST`.
+
+### fusion-mlx Integration
+
+fusion-mlx requires a route header and API key. fusion-health sends these automatically from config; override for your environment:
+
+```bash
+export FUSION_HEALTH_MLX_URL=http://localhost:11434/v1      # fusion-mlx actual port
+export FUSION_HEALTH_MLX_API_KEY=<your-fusion-mlx-key>      # from ~/.fusion-mlx/settings.json
+export FUSION_HEALTH_MLX_ROUTE=chat                          # X-Fusion-Route header value
+```
+
+> Note: the in-repo config default port is `11432` (per historical issue #6), but fusion-mlx actually listens on `11434`. Set `FUSION_HEALTH_MLX_URL` accordingly for real integration. Upstream tracking: [fusion-mlx#403](https://github.com/dahai80/fusion-mlx/issues/403).
 
 ### Multi-turn Chat
 
