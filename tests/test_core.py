@@ -353,7 +353,7 @@ class TestLiteratureClients:
 class TestConfig:
     def test_default_config(self):
         cfg = HealthConfig()
-        assert cfg.model == "qwen3.5-9b"
+        assert cfg.model == "Qwen3.5-9B-4bit"
         assert "localhost:11432" in cfg.mlx_url
 
     def test_from_env_override(self):

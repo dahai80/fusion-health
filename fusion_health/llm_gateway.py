@@ -17,6 +17,12 @@ class LLMGateway:
         self.config = config or HealthConfig.from_env()
         self._client: httpx.AsyncClient | None = None
 
+    def _auth_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {"X-Fusion-Route": self.config.mlx_route}
+        if self.config.mlx_api_key:
+            headers["Authorization"] = f"Bearer {self.config.mlx_api_key}"
+        return headers
+
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(timeout=self.config.timeout)
@@ -49,6 +55,7 @@ class LLMGateway:
             resp = await client.post(
                 f"{self.config.mlx_url.rstrip('/')}/chat/completions",
                 json=payload,
+                headers=self._auth_headers(),
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
@@ -95,6 +102,7 @@ class LLMGateway:
                 "POST",
                 f"{self.config.mlx_url.rstrip('/')}/chat/completions",
                 json=payload,
+                headers=self._auth_headers(),
             ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from .base import VerificationStatus
@@ -30,5 +32,5 @@ class CPTCodeResult(BaseModel):
 
 
 class ClaimAuditResult(BaseModel):
-    issues: list[str] = []
+    issues: list[Any] = []
     error: str = ""

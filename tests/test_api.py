@@ -34,7 +34,7 @@ class TestHealthEndpoint:
     def test_health_check_model(self, client):
         resp = client.get("/api/v1/health")
         data = resp.json()
-        assert data["model"] == "qwen3.5-9b"
+        assert data["model"] == "Qwen3.5-9B-4bit"
 
 
 class TestEHREndpoints:
