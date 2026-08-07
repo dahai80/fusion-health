@@ -115,17 +115,16 @@ Background-detach start/stop/status for fusion-studio integration — port 11456
 
 Override defaults via env: `FUSION_HEALTH_PORT`, `FUSION_HEALTH_HOST`.
 
-### fusion-mlx Integration
+### fusion-gateway Integration
 
-fusion-mlx requires a route header and API key. fusion-health sends these automatically from config; override for your environment:
+fusion-health connects to **fusion-gateway** (port `11432`), which proxies to the local fusion-mlx inference engine. The gateway authenticates with an API key — no route header needed:
 
 ```bash
-export FUSION_HEALTH_MLX_URL=http://localhost:11434/v1      # fusion-mlx actual port
-export FUSION_HEALTH_MLX_API_KEY=<your-fusion-mlx-key>      # from ~/.fusion-mlx/settings.json
-export FUSION_HEALTH_MLX_ROUTE=chat                          # X-Fusion-Route header value
+export FUSION_HEALTH_MLX_URL=http://localhost:11432/v1      # fusion-gateway endpoint (default)
+export FUSION_MLX_API_KEY=<your-gateway-key>                 # gateway API key (e.g. fg-admin-key)
 ```
 
-> Note: the in-repo config default port is `11432` (per historical issue #6), but fusion-mlx actually listens on `11434`. Set `FUSION_HEALTH_MLX_URL` accordingly for real integration. Upstream tracking: [fusion-mlx#403](https://github.com/dahai80/fusion-mlx/issues/403).
+`FUSION_MLX_API_KEY` is the standard key source; `FUSION_HEALTH_MLX_API_KEY` is accepted as an alias. To bypass the gateway and connect to fusion-mlx directly (port `11434`), also set `FUSION_HEALTH_MLX_ROUTE=chat` to send the required `X-Fusion-Route` header.
 
 ### Multi-turn Chat
 

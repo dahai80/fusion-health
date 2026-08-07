@@ -15,7 +15,7 @@ class HealthConfig:
     mlx_url: str = "http://localhost:11432/v1"
     model: str = "Qwen3.5-9B-4bit"
     mlx_api_key: str = ""
-    mlx_route: str = "chat"
+    mlx_route: str = ""
     temperature: float = 0.1
     max_tokens: int = 2048
     timeout: float = 60.0
@@ -35,6 +35,7 @@ class HealthConfig:
         env_map = {
             "FUSION_HEALTH_MLX_URL": ("mlx_url", str),
             "FUSION_HEALTH_MODEL": ("model", str),
+            "FUSION_MLX_API_KEY": ("mlx_api_key", str),
             "FUSION_HEALTH_MLX_API_KEY": ("mlx_api_key", str),
             "FUSION_HEALTH_MLX_ROUTE": ("mlx_route", str),
             "FUSION_HEALTH_TEMPERATURE": ("temperature", float),
