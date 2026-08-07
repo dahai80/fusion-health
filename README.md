@@ -96,11 +96,24 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```bash
 # Start the REST API server
-uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
+uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 
 # Or with API key protection
-FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 ```
+
+### Lifecycle Manager (start.sh)
+
+Background-detach start/stop/status for fusion-studio integration — port 11456 aligns with `healthPort`.
+
+```bash
+./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11456 (PID file .fusion-health.pid)
+./start.sh stop     # graceful SIGTERM, fallback SIGKILL after 5s
+./start.sh status   # prints "running (pid N, port 11456)" / "stopped"; exit 0/1
+./start.sh restart  # stop then start
+```
+
+Override defaults via env: `FUSION_HEALTH_PORT`, `FUSION_HEALTH_HOST`.
 
 ### Multi-turn Chat
 

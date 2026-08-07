@@ -96,11 +96,24 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```bash
 # 启动 REST API 服务器
-uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
+uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 
 # 带 API Key 保护启动
-FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11453
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 ```
+
+### 生命周期管理 (start.sh)
+
+后台 detach 启动/停止/状态，供 fusion-studio 集成 — 端口 11456 对齐 `healthPort`。
+
+```bash
+./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11456（PID 文件 .fusion-health.pid）
+./start.sh stop     # 优雅 SIGTERM，5s 后回退 SIGKILL
+./start.sh status   # 输出 "running (pid N, port 11456)" / "stopped"；退出码 0/1
+./start.sh restart  # 先停后启
+```
+
+通过环境变量覆盖默认值：`FUSION_HEALTH_PORT`、`FUSION_HEALTH_HOST`。
 
 ### 多轮对话
 

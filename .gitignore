@@ -8,3 +8,5 @@ htmlcov/
 CLAUDE.md
 claude-health-insight.md
 fusion-health-prd-ar-plan.md
+.fusion-health.pid
+logs/
