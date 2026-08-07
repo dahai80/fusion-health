@@ -95,12 +95,14 @@ fusion-health compliance audit --input=clinical_note.txt
 ### API Server
 
 ```bash
-# Start the REST API server
-uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
+# Local-only (default): requests from 127.0.0.1 are allowed without a key
+uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11456
 
-# Or with API key protection
+# Expose to network: API key is REQUIRED — remote requests without it get 401
 FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 ```
+
+> Security: when `FUSION_HEALTH_API_KEY` is unset, `/api/*` endpoints accept only localhost (`127.0.0.1`/`::1`) requests; non-localhost requests return 401. To serve on `0.0.0.0` or any non-loopback bind, always set `FUSION_HEALTH_API_KEY`. Clients send it via the `X-API-Key` header.
 
 ### Lifecycle Manager (start.sh)
 
@@ -124,7 +126,7 @@ export FUSION_HEALTH_MLX_URL=http://localhost:11432/v1      # fusion-gateway end
 export FUSION_MLX_API_KEY=<your-gateway-key>                 # gateway API key (e.g. fg-admin-key)
 ```
 
-`FUSION_MLX_API_KEY` is the standard key source; `FUSION_HEALTH_MLX_API_KEY` is accepted as an alias. To bypass the gateway and connect to fusion-mlx directly (port `11434`), also set `FUSION_HEALTH_MLX_ROUTE=chat` to send the required `X-Fusion-Route` header.
+`FUSION_MLX_API_KEY` is the standard key source; `FUSION_HEALTH_MLX_API_KEY` is accepted as an alias. If neither env var is set, fusion-health automatically reads the key from `~/.fusion-mlx/settings.json` (`auth.api_key`) so direct-mlx setups work out of the box. To bypass the gateway and connect to fusion-mlx directly (port `11434`), also set `FUSION_HEALTH_MLX_ROUTE=chat` to send the required `X-Fusion-Route` header.
 
 ### Multi-turn Chat
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
@@ -16,9 +17,10 @@ def app():
 
 
 @pytest.fixture
-def client(app):
+def client(app, monkeypatch):
+    monkeypatch.setenv("FUSION_HEALTH_API_KEY", "test-key-123")
     from starlette.testclient import TestClient
-    return TestClient(app)
+    return TestClient(app, headers={"X-API-Key": "test-key-123"})
 
 
 class TestHealthEndpoint:
@@ -272,9 +274,24 @@ class TestTCMEndpoints:
 
 
 class TestAPIKeyMiddleware:
-    def test_no_key_required_by_default(self, client):
-        resp = client.get("/api/v1/health")
-        assert resp.status_code == 200
+    def test_no_key_non_localhost_rejected(self, app, monkeypatch):
+        monkeypatch.delenv("FUSION_HEALTH_API_KEY", raising=False)
+        from starlette.testclient import TestClient
+        c = TestClient(app)
+        resp = c.post("/api/v1/ehr/summary", json={"clinical_notes": "test"})
+        assert resp.status_code == 401
+
+    def test_no_key_localhost_allowed(self, app, monkeypatch):
+        monkeypatch.delenv("FUSION_HEALTH_API_KEY", raising=False)
+        import httpx
+
+        async def call():
+            transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50000))
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+                return await ac.post("/api/v1/ehr/summary", json={"clinical_notes": "test"})
+
+        resp = asyncio.run(call())
+        assert resp.status_code in (200, 500)
 
     def test_health_exempt_with_key(self, app, monkeypatch):
         monkeypatch.setenv("FUSION_HEALTH_API_KEY", "test-key-123")

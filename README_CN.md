@@ -95,12 +95,14 @@ fusion-health compliance audit --input=clinical_note.txt
 ### API 服务器
 
 ```bash
-# 启动 REST API 服务器
-uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
+# 仅本地（默认）：来自 127.0.0.1 的请求无需 key 即可访问
+uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11456
 
-# 带 API Key 保护启动
+# 对外暴露：必须设 API key，否则远程请求返回 401
 FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
 ```
+
+> 安全：未设 `FUSION_HEALTH_API_KEY` 时，`/api/*` 端点仅接受 localhost（`127.0.0.1`/`::1`）请求，非 localhost 返回 401。绑定 `0.0.0.0` 或任何非回环地址前，务必设置 `FUSION_HEALTH_API_KEY`；客户端通过 `X-API-Key` 头传递。
 
 ### 生命周期管理 (start.sh)
 
@@ -124,7 +126,7 @@ export FUSION_HEALTH_MLX_URL=http://localhost:11432/v1      # fusion-gateway 端
 export FUSION_MLX_API_KEY=<your-gateway-key>                 # gateway API key（如 fg-admin-key）
 ```
 
-`FUSION_MLX_API_KEY` 为标准 key 来源；`FUSION_HEALTH_MLX_API_KEY` 作为别名兼容。若需绕过 gateway 直连 fusion-mlx（端口 `11434`），另设 `FUSION_HEALTH_MLX_ROUTE=chat` 以发送必需的 `X-Fusion-Route` 头。
+`FUSION_MLX_API_KEY` 为标准 key 来源；`FUSION_HEALTH_MLX_API_KEY` 作为别名兼容。若两者均未设，fusion-health 自动从 `~/.fusion-mlx/settings.json`（`auth.api_key`）读取 key，直连 mlx 场景开箱即用。若需绕过 gateway 直连 fusion-mlx（端口 `11434`），另设 `FUSION_HEALTH_MLX_ROUTE=chat` 以发送必需的 `X-Fusion-Route` 头。
 
 ### 多轮对话
 

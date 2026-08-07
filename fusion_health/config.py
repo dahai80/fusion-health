@@ -66,6 +66,20 @@ class HealthConfig:
             except Exception as e:
                 logger.warning("Failed to load config.yaml: %s", e)
 
+        if not cfg.mlx_api_key:
+            settings_path = Path.home() / ".fusion-mlx" / "settings.json"
+            try:
+                if settings_path.exists():
+                    import json
+                    with open(settings_path, encoding="utf-8") as f:
+                        s = json.load(f) or {}
+                    key = s.get("auth", {}).get("api_key", "") if isinstance(s, dict) else ""
+                    if key:
+                        cfg.mlx_api_key = key
+                        logger.info("Loaded mlx_api_key from %s", settings_path)
+            except Exception as e:
+                logger.warning("Failed to read fusion-mlx settings.json: %s", e)
+
         logger.info(
             "HealthConfig: model=%s, mlx_url=%s, offline=%s",
             cfg.model, cfg.mlx_url, cfg.offline,
