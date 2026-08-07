@@ -18,7 +18,9 @@ class LLMGateway:
         self._client: httpx.AsyncClient | None = None
 
     def _auth_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {"X-Fusion-Route": self.config.mlx_route}
+        headers: dict[str, str] = {}
+        if self.config.mlx_route:
+            headers["X-Fusion-Route"] = self.config.mlx_route
         if self.config.mlx_api_key:
             headers["Authorization"] = f"Bearer {self.config.mlx_api_key}"
         return headers

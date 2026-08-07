@@ -8,10 +8,10 @@
 
 | 项 | 值 |
 |---|---|
-| 推理引擎 | fusion-mlx（本地 Apple Silicon） |
+| 推理链路 | fusion-health → fusion-gateway(11432) → fusion-mlx(11434) |
 | 模型 | `Qwen3.5-9B-4bit`（4bit 量化） |
-| 引擎端口 | 11434（实际监听） |
-| 认证 | `X-Fusion-Route: chat` + `Authorization: Bearer <api_key>` |
+| 接入端口 | 11432（fusion-gateway） |
+| 认证 | `Authorization: Bearer <gateway-key>`（环境变量 `FUSION_MLX_API_KEY`），无需 route 头 |
 | 健康检查 | `fusion-mlx start.sh status` → healthy, model_loaded=true |
 | 测试覆盖 | 138 单元测试全绿 + ruff 0 issues |
 
@@ -55,21 +55,24 @@
 | 9 | FastAPI REST + SSE（30+ 端点） | 启动 uvicorn 真实请求 `/api/v1/health` + `/api/v1/ehr/summary/stream` | ✅ health 返回正确 model；SSE 680 token + done |
 | 10 | 原生中文 + TCM 支持 | 上述中文输入/输出 | ✅ 中文证候、十八反、对话、病历规则全程中文 |
 
-## 4. 已知上游问题（已提 issue，不阻塞本仓库发布）
+## 4. 架构说明与集成方式
 
-- **fusion-mlx 端口**：`start.sh` 实际监听 11434，但本仓库 `config.mlx_url` 默认 11432（沿用 issue #6）。已向上游提 issue [fusion-mlx#403](https://github.com/dahai80/fusion-mlx/issues/403)。
-- **集成测试方式**：真实集成需用环境变量覆盖：
+- **连接拓扑**：fusion-health → **fusion-gateway (11432)** → fusion-mlx (11434)。config 默认 `mlx_url=http://localhost:11432/v1` 指向 gateway，正确。
+- **鉴权**：gateway 用 API key（`Authorization: Bearer <key>`），**无需** `X-Fusion-Route` 头。标准 key 来源为环境变量 `FUSION_MLX_API_KEY`（`FUSION_HEALTH_MLX_API_KEY` 为别名兼容）。
+- **直连模式（可选）**：如需绕过 gateway 直连 fusion-mlx，设 `FUSION_HEALTH_MLX_URL=http://localhost:11434/v1` 并设 `FUSION_HEALTH_MLX_ROUTE=chat` 以发送 `X-Fusion-Route` 头。
+- **集成测试方式**：
   ```bash
-  FUSION_HEALTH_MLX_URL=http://localhost:11434/v1 \
-  FUSION_HEALTH_MLX_API_KEY=<key> \
+  FUSION_HEALTH_MLX_URL=http://localhost:11432/v1 \
+  FUSION_MLX_API_KEY=<gateway-key> \
   pytest  # 或运行应用
   ```
+- **上游 issue 更正**：先前误提的 fusion-mlx#403（端口不一致）已关闭——11432 是 gateway 端口而非 fusion-mlx 端口，config 默认值正确。
 
 ## 5. 发布清单
 
 - [x] 138 单元测试全绿
 - [x] ruff 0 issues
 - [x] 10 项核心特性真实模型验收通过
-- [x] 上游端口 issue 已提（fusion-mlx#403）
+- [x] 上游端口 issue 已关闭（fusion-mlx#403 误提，11432 为 gateway 端口）
 - [x] 版本 1.0.4 → 1.0.5
 - [x] 本验收报告生成

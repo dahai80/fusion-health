@@ -115,17 +115,16 @@ FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0
 
 通过环境变量覆盖默认值：`FUSION_HEALTH_PORT`、`FUSION_HEALTH_HOST`。
 
-### fusion-mlx 对接
+### fusion-gateway 对接
 
-fusion-mlx 要求路由头与 API key。fusion-health 从配置自动发送；按环境覆盖：
+fusion-health 连接 **fusion-gateway**（端口 `11432`），由 gateway 代理至本地 fusion-mlx 推理引擎。gateway 用 API key 鉴权，无需路由头：
 
 ```bash
-export FUSION_HEALTH_MLX_URL=http://localhost:11434/v1      # fusion-mlx 实际端口
-export FUSION_HEALTH_MLX_API_KEY=<your-fusion-mlx-key>      # 见 ~/.fusion-mlx/settings.json
-export FUSION_HEALTH_MLX_ROUTE=chat                          # X-Fusion-Route 头值
+export FUSION_HEALTH_MLX_URL=http://localhost:11432/v1      # fusion-gateway 端点（默认）
+export FUSION_MLX_API_KEY=<your-gateway-key>                 # gateway API key（如 fg-admin-key）
 ```
 
-> 注：仓库内配置默认端口为 `11432`（历史 issue #6），但 fusion-mlx 实际监听 `11434`。真实对接请按上设置 `FUSION_HEALTH_MLX_URL`。上游跟踪：[fusion-mlx#403](https://github.com/dahai80/fusion-mlx/issues/403)。
+`FUSION_MLX_API_KEY` 为标准 key 来源；`FUSION_HEALTH_MLX_API_KEY` 作为别名兼容。若需绕过 gateway 直连 fusion-mlx（端口 `11434`），另设 `FUSION_HEALTH_MLX_ROUTE=chat` 以发送必需的 `X-Fusion-Route` 头。
 
 ### 多轮对话
 
