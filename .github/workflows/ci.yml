@@ -17,6 +17,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install fusion-core (in-tree dependency, not on PyPI)
+        run: pip install git+https://github.com/dahai80/fusion-core.git
+        # fusion-core is an in-tree editable install in the monorepo venv
+        # but has no PyPI release, so CI resolves it from git. See
+        # dahai80/fusion-core#9 for the permanent publish-track fix.
+
       - name: Install package with test extras
         run: pip install -e ".[test]"
 
