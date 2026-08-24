@@ -6,6 +6,8 @@ from collections.abc import AsyncGenerator
 
 import httpx
 
+from fusion_core.http_client import get_async_client, with_retry
+
 from .config import HealthConfig
 from .schemas.base import LLMResult
 
@@ -27,8 +29,11 @@ class LLMGateway:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=self.config.timeout)
-            logger.debug("Created new httpx.AsyncClient, timeout=%.1f", self.config.timeout)
+            self._client = get_async_client(
+                self.config.mlx_url,
+                timeout=self.config.timeout,
+            )
+            logger.debug("Pooled httpx.AsyncClient via fusion_core, base=%s", self.config.mlx_url)
         return self._client
 
     async def chat(
@@ -53,15 +58,22 @@ class LLMGateway:
         logger.debug("LLM request: model=%s, msgs=%d, temp=%.2f, max_tokens=%d", model, len(messages), temperature, max_tokens)
 
         client = await self._get_client()
+        headers = self._auth_headers()
         try:
-            resp = await client.post(
-                f"{self.config.mlx_url.rstrip('/')}/chat/completions",
-                json=payload,
-                headers=self._auth_headers(),
+            resp = await with_retry(
+                lambda: client.post(
+                    f"{self.config.mlx_url.rstrip('/')}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                ),
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             logger.info("LLM response: model=%s, len=%d", model, len(content))
+
+            if not content or not content.strip():
+                logger.warning("LLM returned empty content, model=%s", model)
+                return LLMResult(content="", error="empty_content", model=model)
 
             if response_schema:
                 return self._parse_structured(content, response_schema, model)
@@ -159,9 +171,9 @@ class LLMGateway:
             )
 
     async def close(self):
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
-            logger.debug("Closed httpx.AsyncClient")
+        if self._client is not None:
+            logger.debug("Releasing reference to pooled httpx.AsyncClient (pool-managed, not closed)")
+        self._client = None
 
     async def __aenter__(self):
         return self
