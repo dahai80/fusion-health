@@ -384,6 +384,50 @@ class TestLLMGateway:
         assert result.error != ""
         assert result.raw == "not json at all"
 
+    @pytest.mark.asyncio
+    async def test_chat_empty_content_guard_dh3(self):
+        gw = LLMGateway(config=_make_config())
+        fake_resp = MagicMock()
+        fake_resp.status_code = 200
+        fake_resp.json.return_value = {"choices": [{"message": {"content": ""}}]}
+        fake_resp.raise_for_status = MagicMock()
+        fake_client = MagicMock()
+        fake_client.post = AsyncMock(return_value=fake_resp)
+        with patch.object(gw, "_get_client", AsyncMock(return_value=fake_client)):
+            result = await gw.chat(messages=[{"role": "user", "content": "hi"}])
+        assert result.content == ""
+        assert result.error == "empty_content"
+        assert result.ok is False
+
+    @pytest.mark.asyncio
+    async def test_chat_whitespace_content_guard_dh3(self):
+        gw = LLMGateway(config=_make_config())
+        fake_resp = MagicMock()
+        fake_resp.status_code = 200
+        fake_resp.json.return_value = {"choices": [{"message": {"content": "   \n  "}}]}
+        fake_resp.raise_for_status = MagicMock()
+        fake_client = MagicMock()
+        fake_client.post = AsyncMock(return_value=fake_resp)
+        with patch.object(gw, "_get_client", AsyncMock(return_value=fake_client)):
+            result = await gw.chat(messages=[{"role": "user", "content": "hi"}])
+        assert result.error == "empty_content"
+        assert result.ok is False
+
+    @pytest.mark.asyncio
+    async def test_chat_real_content_passes(self):
+        gw = LLMGateway(config=_make_config())
+        fake_resp = MagicMock()
+        fake_resp.status_code = 200
+        fake_resp.json.return_value = {"choices": [{"message": {"content": "plain summary"}}]}
+        fake_resp.raise_for_status = MagicMock()
+        fake_client = MagicMock()
+        fake_client.post = AsyncMock(return_value=fake_resp)
+        with patch.object(gw, "_get_client", AsyncMock(return_value=fake_client)):
+            result = await gw.chat(messages=[{"role": "user", "content": "hi"}])
+        assert result.content == "plain summary"
+        assert result.error == ""
+        assert result.ok is True
+
 
 class TestCLI:
     def test_version(self):
