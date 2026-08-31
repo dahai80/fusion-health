@@ -68,7 +68,12 @@ def main():
         config.model = args.model
 
     if args.command == "version":
-        print("Fusion-Health v1.0.0")
+        from importlib.metadata import version as pkg_version
+        try:
+            ver = pkg_version("fusion-health")
+        except Exception:
+            ver = "0.0.0"
+        print(f"Fusion-Health v{ver}")
     elif args.command == "tui":
         from fusion_health.cli.tui import run_tui
         run_tui(config)

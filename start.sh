@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # fusion-health lifecycle manager (start|stop|restart|status)
-# REST API on port 11456 (health endpoint: /health, 公开无需鉴权)。
+# REST API on port 11469 (health endpoint: /health, 公开无需鉴权)。
 # Callers: fusion-studio UpstreamServiceManager (auto-start on launch + manual start)。
 # Affected API: start.sh start|stop|restart|status; status exits 0 if running, 1 if not。
 # Data schemas: PID file .fusion-health.pid; logs/stdout.log + logs/stderr.log。
@@ -14,7 +14,7 @@ PID_FILE="${SCRIPT_DIR}/.fusion-health.pid"
 LOG_DIR="${SCRIPT_DIR}/logs"
 STDOUT_LOG="${LOG_DIR}/stdout.log"
 STDERR_LOG="${LOG_DIR}/stderr.log"
-PORT="${FUSION_HEALTH_PORT:-11456}"
+PORT="${FUSION_HEALTH_PORT:-11469}"
 HOST="${FUSION_HEALTH_HOST:-127.0.0.1}"
 
 mkdir -p "$LOG_DIR"

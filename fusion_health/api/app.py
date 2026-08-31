@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from importlib.metadata import version as pkg_version
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,10 +24,14 @@ async def lifespan(app: FastAPI):
 
 
 def create_app(config: HealthConfig | None = None) -> FastAPI:
+    try:
+        ver = pkg_version("fusion-health")
+    except Exception:
+        ver = "0.0.0"
     app = FastAPI(
         title="Fusion-Health API",
         description="Local AI healthcare assistant",
-        version="1.0.0",
+        version=ver,
         lifespan=lifespan,
     )
 
