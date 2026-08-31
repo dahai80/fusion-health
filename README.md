@@ -96,22 +96,22 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```bash
 # Local-only (default): requests from 127.0.0.1 are allowed without a key
-uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11456
+uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11469
 
 # Expose to network: API key is REQUIRED — remote requests without it get 401
-FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11469
 ```
 
 > Security: when `FUSION_HEALTH_API_KEY` is unset, `/api/*` endpoints accept only localhost (`127.0.0.1`/`::1`) requests; non-localhost requests return 401. To serve on `0.0.0.0` or any non-loopback bind, always set `FUSION_HEALTH_API_KEY`. Clients send it via the `X-API-Key` header.
 
 ### Lifecycle Manager (start.sh)
 
-Background-detach start/stop/status for fusion-studio integration — port 11456 aligns with `healthPort`.
+Background-detach start/stop/status for fusion-studio integration — port 11469 (moved off 11456 to avoid collision with fusion-simulation-metrics).
 
 ```bash
-./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11456 (PID file .fusion-health.pid)
+./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11469 (PID file .fusion-health.pid)
 ./start.sh stop     # graceful SIGTERM, fallback SIGKILL after 5s
-./start.sh status   # prints "running (pid N, port 11456)" / "stopped"; exit 0/1
+./start.sh status   # prints "running (pid N, port 11469)" / "stopped"; exit 0/1
 ./start.sh restart  # stop then start
 ```
 

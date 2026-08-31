@@ -96,22 +96,22 @@ fusion-health compliance audit --input=clinical_note.txt
 
 ```bash
 # 仅本地（默认）：来自 127.0.0.1 的请求无需 key 即可访问
-uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11456
+uvicorn fusion_health.api.app:app --host 127.0.0.1 --port 11469
 
 # 对外暴露：必须设 API key，否则远程请求返回 401
-FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11456
+FUSION_HEALTH_API_KEY=your-secret uvicorn fusion_health.api.app:app --host 0.0.0.0 --port 11469
 ```
 
 > 安全：未设 `FUSION_HEALTH_API_KEY` 时，`/api/*` 端点仅接受 localhost（`127.0.0.1`/`::1`）请求，非 localhost 返回 401。绑定 `0.0.0.0` 或任何非回环地址前，务必设置 `FUSION_HEALTH_API_KEY`；客户端通过 `X-API-Key` 头传递。
 
 ### 生命周期管理 (start.sh)
 
-后台 detach 启动/停止/状态，供 fusion-studio 集成 — 端口 11456 对齐 `healthPort`。
+后台 detach 启动/停止/状态，供 fusion-studio 集成 — 端口 11469（从 11456 迁移，避免与 fusion-simulation-metrics 冲突）。
 
 ```bash
-./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11456（PID 文件 .fusion-health.pid）
+./start.sh start    # nohup uvicorn ... --host 127.0.0.1 --port 11469（PID 文件 .fusion-health.pid）
 ./start.sh stop     # 优雅 SIGTERM，5s 后回退 SIGKILL
-./start.sh status   # 输出 "running (pid N, port 11456)" / "stopped"；退出码 0/1
+./start.sh status   # 输出 "running (pid N, port 11469)" / "stopped"；退出码 0/1
 ./start.sh restart  # 先停后启
 ```
 
