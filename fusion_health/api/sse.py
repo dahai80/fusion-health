@@ -22,6 +22,7 @@ async def _sse_generator(
     full: list[str] = []
     token_q: asyncio.Queue[str | None] = asyncio.Queue()
     consume_error: list[BaseException] = []
+    disconnected = False
 
     async def _consume():
         try:
@@ -40,6 +41,7 @@ async def _sse_generator(
             except asyncio.TimeoutError:
                 if await request.is_disconnected():
                     logger.info("SSE client disconnected (heartbeat), aborting stream")
+                    disconnected = True
                     break
                 yield ": heartbeat\n\n"
                 continue
@@ -51,6 +53,9 @@ async def _sse_generator(
             e = consume_error[0]
             logger.error("SSE stream error: %s", e)
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+        elif disconnected:
+            logger.info("SSE stream interrupted by disconnect — skipping on_done (truncated content not persisted)")
+            yield f"data: {json.dumps({'interrupted': True}, ensure_ascii=False)}\n\n"
         else:
             yield f"data: {json.dumps({'done': True, 'content': ''.join(full)}, ensure_ascii=False)}\n\n"
             if on_done is not None:
