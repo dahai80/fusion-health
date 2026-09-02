@@ -31,22 +31,34 @@ class LiteratureRetriever:
         return await self._search_via_llm(query, max_results)
 
     async def _fetch_real_sources(self, query: str, max_results: int) -> list[dict[str, Any]]:
-        results = []
+        import asyncio
+
+        tasks: list[tuple[str, Any]] = []
         if self.config.pubmed_enabled:
-            try:
-                pubmed = await self._pubmed.search(query, max_results=max_results)
-                results.extend(pubmed)
-            except Exception as e:
-                logger.warning("PubMed fetch failed: %s", e)
-        if len(results) < max_results and self.config.semantic_scholar_enabled:
-            try:
-                s2 = await self._s2.search(query, max_results=max_results - len(results))
-                seen_dois = {r.get("doi", "") for r in results if r.get("doi")}
-                for item in s2:
-                    if item.get("doi") not in seen_dois:
-                        results.append(item)
-            except Exception as e:
-                logger.warning("Semantic Scholar fetch failed: %s", e)
+            tasks.append(("pubmed", self._pubmed.search(query, max_results=max_results)))
+        if self.config.semantic_scholar_enabled:
+            tasks.append(("s2", self._s2.search(query, max_results=max_results)))
+
+        if not tasks:
+            return []
+
+        outcomes = await asyncio.gather(*(t for _, t in tasks), return_exceptions=True)
+        pubmed_results: list[dict[str, Any]] = []
+        s2_results: list[dict[str, Any]] = []
+        for (name, _), outcome in zip(tasks, outcomes):
+            if isinstance(outcome, Exception):
+                logger.warning("%s fetch failed: %s", name, outcome)
+                continue
+            if name == "pubmed":
+                pubmed_results = outcome
+            else:
+                s2_results = outcome
+
+        results = list(pubmed_results)
+        seen_dois = {r.get("doi", "") for r in results if r.get("doi")}
+        for item in s2_results:
+            if item.get("doi") not in seen_dois:
+                results.append(item)
         return results[:max_results]
 
     async def _search_via_llm(self, query: str, max_results: int) -> list[dict[str, Any]]:
