@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    config = HealthConfig.from_env()
-    app.state.config = config
+    if not app.state.config:
+        app.state.config = HealthConfig.from_env()
+    config = app.state.config
     logger.info("Fusion-Health API started: model=%s", config.model)
     yield
-    logger.info("Fusion-Health API shutdown")
+    logger.info("Fusion-Health API shutdown — cleaning resources")
+    await chat.close_all_sessions()
+    await literature.close_all_clients()
 
 
 def create_app(config: HealthConfig | None = None) -> FastAPI:
@@ -35,6 +38,7 @@ def create_app(config: HealthConfig | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(APIKeyMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -42,10 +46,11 @@ def create_app(config: HealthConfig | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_middleware(APIKeyMiddleware)
 
     if config:
         app.state.config = config
+    else:
+        app.state.config = None
 
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(ehr.router, prefix="/api/v1/ehr", tags=["ehr"])

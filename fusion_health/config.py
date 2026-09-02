@@ -10,6 +10,20 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+def _parse_bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return bool(v)
+    s = str(v).strip().lower()
+    if s in ("true", "1", "yes", "on"):
+        return True
+    if s in ("false", "0", "no", "off", ""):
+        return False
+    logger.warning("Unrecognized bool value %r, treating as False", v)
+    return False
+
+
 @dataclass
 class HealthConfig:
     mlx_url: str = "http://localhost:11432/v1"
@@ -28,6 +42,9 @@ class HealthConfig:
     pubmed_enabled: bool = True
     semantic_scholar_enabled: bool = True
     offline: bool = False
+    rate_limit_rpm: int = 0
+    audit_log_path: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "audit.log")
+    session_ttl_seconds: int = 1800
 
     @classmethod
     def from_env(cls) -> HealthConfig:
@@ -43,6 +60,8 @@ class HealthConfig:
             "FUSION_HEALTH_TIMEOUT": ("timeout", float),
             "FUSION_ARTIFACTS_URL": ("artifacts_url", str),
             "FUSION_HEALTH_API_PORT": ("api_port", int),
+            "FUSION_HEALTH_RATE_LIMIT_RPM": ("rate_limit_rpm", int),
+            "FUSION_HEALTH_SESSION_TTL": ("session_ttl_seconds", int),
         }
         for env_key, (attr, cast) in env_map.items():
             val = os.getenv(env_key)
@@ -60,7 +79,11 @@ class HealthConfig:
                 with open(yaml_path, encoding="utf-8") as f:
                     overrides = yaml.safe_load(f) or {}
                 for k, v in overrides.items():
-                    if hasattr(cfg, k):
+                    if not hasattr(cfg, k):
+                        continue
+                    if isinstance(getattr(cfg, k), bool):
+                        setattr(cfg, k, _parse_bool(v))
+                    else:
                         setattr(cfg, k, type(getattr(cfg, k))(v))
                 logger.info("Loaded config overrides from %s", yaml_path)
             except Exception as e:

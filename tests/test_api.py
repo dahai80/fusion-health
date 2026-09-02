@@ -24,7 +24,17 @@ def client(app, monkeypatch):
 
 
 class TestHealthEndpoint:
-    def test_health_check(self, client):
+    def test_health_check(self, client, monkeypatch):
+        class _Resp:
+            status_code = 200
+        class _Probe:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *a):
+                return False
+            async def get(self, *a, **k):
+                return _Resp()
+        monkeypatch.setattr("fusion_health.api.routes.health.httpx.AsyncClient", lambda **k: _Probe())
         resp = client.get("/api/v1/health")
         assert resp.status_code == 200
         data = resp.json()
@@ -178,6 +188,7 @@ class TestLiteratureEndpoints:
         mock_result.error = None
         mock_result.content = "[]"
         mock_gw.chat = AsyncMock(return_value=mock_result)
+        mock_gw.close = AsyncMock()
         MockGateway.return_value = mock_gw
 
         resp = client.post("/api/v1/literature/search", json={"query": "diabetes treatment"})
@@ -193,6 +204,7 @@ class TestLiteratureEndpoints:
         mock_result.error = None
         mock_result.content = "Evidence summary"
         mock_gw.chat = AsyncMock(return_value=mock_result)
+        mock_gw.close = AsyncMock()
         MockGateway.return_value = mock_gw
 
         resp = client.post("/api/v1/literature/evidence", json={
@@ -295,6 +307,16 @@ class TestAPIKeyMiddleware:
 
     def test_health_exempt_with_key(self, app, monkeypatch):
         monkeypatch.setenv("FUSION_HEALTH_API_KEY", "test-key-123")
+        class _Resp:
+            status_code = 200
+        class _Probe:
+            async def __aenter__(self):
+                return self
+            async def __aexit__(self, *a):
+                return False
+            async def get(self, *a, **k):
+                return _Resp()
+        monkeypatch.setattr("fusion_health.api.routes.health.httpx.AsyncClient", lambda **k: _Probe())
         from starlette.testclient import TestClient
         c = TestClient(app)
         resp = c.get("/api/v1/health")
