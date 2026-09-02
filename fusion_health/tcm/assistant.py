@@ -8,10 +8,33 @@ import yaml
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
+from ..schemas.tcm import SOURCE_AI_UNVERIFIED, TCMAnalysisResult
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / "data"
+
+NEGATION_CHARS = {"不", "无", "未", "没", "非", "勿", "否"}
+
+
+def _is_negated_match(text: str, symptom: str, pos: int) -> bool:
+    if pos == 0:
+        return False
+    prev_char = text[pos - 1]
+    return prev_char in NEGATION_CHARS
+
+
+def _symptom_matched(text: str, symptom: str) -> bool:
+    if not symptom:
+        return False
+    start = 0
+    while True:
+        pos = text.find(symptom, start)
+        if pos == -1:
+            return False
+        if not _is_negated_match(text, symptom, pos):
+            return True
+        start = pos + len(symptom)
 
 
 class TCMAssistant:
@@ -42,7 +65,7 @@ class TCMAssistant:
         self._load()
         results = []
         for syndrome in self._syndromes:
-            matched = [s for s in syndrome.get("symptoms", []) if s in symptoms]
+            matched = [s for s in syndrome.get("symptoms", []) if _symptom_matched(symptoms, s)]
             if matched:
                 total = len(syndrome.get("symptoms", []))
                 score = len(matched) / total if total > 0 else 0.0
@@ -110,8 +133,24 @@ class TCMAssistant:
                 f"返回JSON: {{'syndrome': str, 'formula': str, 'herbs': [str], 'reasoning': str}}"
             )}],
             max_tokens=1024,
+            response_schema=TCMAnalysisResult,
         )
         if result.error:
             logger.error("TCM analyze error: %s", result.error)
             return {"source": "ai", "error": result.error}
-        return {"source": "ai", "raw": result.content}
+        if result.parsed:
+            herbs = result.parsed.herbs
+            contraindications = self.check_contraindications(herbs) if herbs else []
+            logger.warning(
+                "TCM analyze used LLM-generated herbs — UNVERIFIED, not from formula DB: %s",
+                herbs,
+            )
+            return {
+                "source": SOURCE_AI_UNVERIFIED,
+                "syndrome": result.parsed.syndrome,
+                "formula": result.parsed.formula,
+                "herbs": herbs,
+                "reasoning": result.parsed.reasoning,
+                "contraindications": contraindications,
+            }
+        return {"source": SOURCE_AI_UNVERIFIED, "raw": result.content}
