@@ -1,30 +1,30 @@
 from __future__ import annotations
 
 import csv
-import json
 import logging
 from typing import Any
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
 from ..schemas.base import VerificationStatus
+from ..schemas.insurance import ProcedureCodeResult, DRGResult
 
 logger = logging.getLogger(__name__)
 
 
 class ICD9CM3Validator:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "icd9cm3_cn" / "icd9cm3_cn.tsv"
         if not db_path.exists():
             logger.warning("ICD-9-CM-3 CN database not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -36,7 +36,6 @@ class ICD9CM3Validator:
             logger.info("Loaded %d ICD-9-CM-3 CN codes", len(self._db))
         except Exception as e:
             logger.error("Failed to load ICD-9-CM-3 CN: %s", e)
-        self._loaded = True
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
@@ -64,18 +63,18 @@ class ICD9CM3Validator:
 
 
 class DRGHelper:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "drg" / "drg_cn.tsv"
         if not db_path.exists():
             logger.warning("DRG database not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -87,7 +86,6 @@ class DRGHelper:
             logger.info("Loaded %d DRG groups", len(self._db))
         except Exception as e:
             logger.error("Failed to load DRG database: %s", e)
-        self._loaded = True
 
     def suggest(self, diagnosis_or_procedure: str, limit: int = 5) -> list[dict]:
         self._load()
@@ -110,18 +108,18 @@ class DRGHelper:
 
 
 class InsuranceCatalogMatcher:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "insurance_catalog.tsv"
         if not db_path.exists():
             logger.warning("Insurance catalog not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -133,7 +131,6 @@ class InsuranceCatalogMatcher:
             logger.info("Loaded %d insurance catalog entries", len(self._db))
         except Exception as e:
             logger.error("Failed to load insurance catalog: %s", e)
-        self._loaded = True
 
     def match(self, icd_code: str) -> dict[str, Any]:
         self._load()
@@ -167,34 +164,22 @@ class CNMedicalCoder:
                 f"Return as JSON: {{'codes': [{{'code': '47.0901', 'description': '...'}}]}}"
             )}],
             max_tokens=1024,
+            response_schema=ProcedureCodeResult,
         )
+        if result.parsed:
+            codes = [item.model_dump() for item in result.parsed.codes]
+            return self._annotate_procedure(codes)
         if result.error:
             logger.error("suggest_procedure_codes error: %s", result.error)
-            return []
-        codes = []
-        try:
-            data = {}
-            if result.content:
-                text = result.content.strip()
-                if text.startswith("```"):
-                    lines = text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines and lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    text = "\n".join(lines)
-                data = json.loads(text)
-            if not isinstance(data, dict):
-                data = {}
-            for item in data.get("codes", []):
-                code = item.get("code", "")
-                validation = self._icd9cm3.validate(code)
-                item["status"] = validation["status"]
-                if validation["valid"]:
-                    item["description"] = validation["description"] or item.get("description", "")
-                codes.append(item)
-        except Exception as e:
-            logger.error("Failed to parse procedure codes: %s", e)
+        return []
+
+    def _annotate_procedure(self, codes: list[dict]) -> list[dict]:
+        for item in codes:
+            code = item.get("code", "")
+            validation = self._icd9cm3.validate(code)
+            item["status"] = validation["status"]
+            if validation["valid"]:
+                item["description"] = validation["description"] or item.get("description", "")
         return codes
 
     async def suggest_drg(self, diagnosis_or_procedure: str) -> dict[str, Any]:
@@ -204,30 +189,16 @@ class CNMedicalCoder:
         result = await self._gateway.chat(
             messages=[{"role": "user", "content": (
                 f"Suggest DRG group for: {diagnosis_or_procedure[:2000]}\n"
-                f"Return as JSON: {{'drg_code': str, 'drg_name': str, 'mdc': str, 'category': str}}"
+                f"Return as JSON: {{'results': [{{'drg_code': str, 'drg_name': str, 'mdc': str, 'category': str}}]}}"
             )}],
             max_tokens=512,
+            response_schema=DRGResult,
         )
+        if result.parsed:
+            return {"source": "ai", "results": [item.model_dump() for item in result.parsed.results]}
         if result.error:
             logger.error("suggest_drg error: %s", result.error)
-            return {"source": "ai", "results": []}
-        try:
-            data = {}
-            if result.content:
-                text = result.content.strip()
-                if text.startswith("```"):
-                    lines = text.split("\n")
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines and lines[-1].strip() == "```":
-                        lines = lines[:-1]
-                    text = "\n".join(lines)
-                data = json.loads(text)
-            if not isinstance(data, dict):
-                return {"source": "ai", "results": [], "raw": result.content}
-            return {"source": "ai", "results": [data]}
-        except Exception:
-            return {"source": "ai", "results": [], "raw": result.content}
+        return {"source": "ai", "results": []}
 
     def match_insurance_catalog(self, icd_codes: list[str]) -> list[dict[str, Any]]:
         return self._catalog.batch_match(icd_codes)

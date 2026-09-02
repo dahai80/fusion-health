@@ -13,17 +13,28 @@ S2_BASE = "https://api.semanticscholar.org/graph/v1"
 class SemanticScholarClient:
     def __init__(self, timeout: float = 30.0):
         self._timeout = timeout
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
+
+    async def aclose(self):
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(f"{S2_BASE}/paper/search", params={
-                    "query": query,
-                    "limit": max_results,
-                    "fields": "title,authors,year,externalIds,abstract,journal",
-                })
-                resp.raise_for_status()
-                data = resp.json().get("data", [])
+            client = await self._get_client()
+            resp = await client.get(f"{S2_BASE}/paper/search", params={
+                "query": query,
+                "limit": max_results,
+                "fields": "title,authors,year,externalIds,abstract,journal",
+            })
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
 
             results = []
             for paper in data:

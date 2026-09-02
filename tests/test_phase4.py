@@ -274,7 +274,7 @@ class TestChatAPIRoutes:
             "session_id": "nonexistent",
             "message": "test",
         })
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         assert resp.json()["error"] == "session_not_found"
 
     def test_list_sessions(self):
@@ -302,5 +302,5 @@ class TestChatAPIRoutes:
         app = create_app(HealthConfig())
         client = TestClient(app, headers={"X-API-Key": "test-key-123"})
         resp = client.delete("/api/v1/chat/sessions/no-such-session")
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         assert resp.json()["error"] == "session_not_found"

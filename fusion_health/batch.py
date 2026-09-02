@@ -27,8 +27,6 @@ class BatchProcessor:
     def __init__(self, config: HealthConfig | None = None, max_concurrent: int = 3):
         self.config = config or HealthConfig.from_env()
         self._semaphore = asyncio.Semaphore(max_concurrent)
-        self._results: list[dict[str, Any]] = []
-        self._errors: list[dict[str, Any]] = []
 
     async def process_directory(
         self, directory: Path, action: str, pattern: str = "*.txt", output_dir: Path | None = None,
@@ -38,38 +36,53 @@ class BatchProcessor:
             logger.warning("No files matching '%s' in %s", pattern, directory)
             return {"total": 0, "success": 0, "errors": 0, "results": []}
 
-        self._results = []
-        self._errors = []
-        tasks = [self._process_file(f, action, output_dir) for f in files]
+        results: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        tasks = [self._process_file(f, action, output_dir, results, errors) for f in files]
         await asyncio.gather(*tasks)
 
         summary = {
             "total": len(files),
-            "success": len(self._results),
-            "errors": len(self._errors),
-            "results": self._results,
+            "success": len(results),
+            "errors": len(errors),
+            "results": results,
         }
-        if self._errors:
-            summary["error_details"] = self._errors
+        if errors:
+            summary["error_details"] = errors
         return summary
 
-    async def _process_file(self, filepath: Path, action: str, output_dir: Path | None):
+    async def _process_file(
+        self,
+        filepath: Path,
+        action: str,
+        output_dir: Path | None,
+        results: list[dict[str, Any]],
+        errors: list[dict[str, Any]],
+    ):
         async with self._semaphore:
             try:
-                text = filepath.read_text(encoding="utf-8", errors="replace")
+                text = await asyncio.to_thread(
+                    filepath.read_text, encoding="utf-8", errors="replace"
+                )
                 result = await self._execute_action(action, text)
-                self._results.append({"file": str(filepath), "status": "ok", "result": result})
+                results.append({"file": str(filepath), "status": "ok", "result": result})
                 logger.info("Batch processed: %s [%s]", filepath.name, action)
 
                 if output_dir:
                     out_path = output_dir / f"{filepath.stem}_{action}.json"
                     out_path.parent.mkdir(parents=True, exist_ok=True)
-                    out_path.write_text(
-                        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8",
+                    await asyncio.to_thread(
+                        self._write_output, out_path, result,
                     )
             except Exception as e:
                 logger.error("Batch error: %s — %s", filepath, e)
-                self._errors.append({"file": str(filepath), "error": str(e)})
+                errors.append({"file": str(filepath), "error": str(e)})
+
+    @staticmethod
+    def _write_output(out_path: Path, result: Any):
+        out_path.write_text(
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
 
     async def _execute_action(self, action: str, text: str) -> Any:
         if action == "ehr_summary":

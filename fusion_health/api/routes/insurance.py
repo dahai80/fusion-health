@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from ...insurance.coder import InsuranceCoder
 from ...insurance.cn_coding import CNMedicalCoder
 from ...llm_gateway import LLMGateway
+from ...schemas.insurance import ClaimData
 from ..sse import sse_response
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class CPTRequest(BaseModel):
 
 
 class ClaimAuditRequest(BaseModel):
-    claim_data: dict
+    claim_data: ClaimData
 
 
 class DRGRequest(BaseModel):
@@ -58,7 +59,7 @@ async def suggest_icd10_stream(request: Request, body: ICD10Request):
             f"{body.diagnosis_text[:4000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/cpt")
@@ -79,14 +80,14 @@ async def suggest_cpt_stream(request: Request, body: CPTRequest):
             f"{body.procedure_text[:4000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/claim-audit")
 async def audit_claim(request: Request, body: ClaimAuditRequest) -> dict[str, Any]:
     config = request.app.state.config
     coder = InsuranceCoder(config)
-    return await coder.audit_claim(body.claim_data)
+    return await coder.audit_claim(body.claim_data.model_dump())
 
 
 @router.post("/drg")

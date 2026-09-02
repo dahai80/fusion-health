@@ -50,4 +50,4 @@ async def summarize_evidence_stream(request: Request, body: EvidenceRequest):
             f"Literature: {body.literature[:10]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)

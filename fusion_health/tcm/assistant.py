@@ -8,41 +8,69 @@ import yaml
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
+from ..schemas.tcm import SOURCE_AI_UNVERIFIED, TCMAnalysisResult
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / "data"
 
+NEGATION_CHARS = {"不", "无", "未", "没", "非", "勿", "否"}
+
+
+def _is_negated_match(text: str, symptom: str, pos: int) -> bool:
+    if pos == 0:
+        return False
+    prev_char = text[pos - 1]
+    return prev_char in NEGATION_CHARS
+
+
+def _symptom_matched(text: str, symptom: str) -> bool:
+    if not symptom:
+        return False
+    start = 0
+    while True:
+        pos = text.find(symptom, start)
+        if pos == -1:
+            return False
+        if not _is_negated_match(text, symptom, pos):
+            return True
+        start = pos + len(symptom)
+
 
 class TCMAssistant:
+    _DATA_CACHE: dict[str, dict] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
         self._gateway = LLMGateway(self.config)
-        self._syndromes: list[dict] = []
-        self._formulas: list[dict] = []
-        self._contraindications: dict[str, list[dict]] = {}
-        self._loaded = False
+        cache = self._DATA_CACHE.setdefault(str(DATA_DIR), {})
+        self._syndromes: list[dict] = cache.setdefault("syndromes", [])
+        self._formulas: list[dict] = cache.setdefault("formulas", [])
+        self._contraindications: dict[str, list[dict]] = cache.setdefault("contraindications", {})
+        self._cache = cache
 
     def _load(self):
-        if self._loaded:
+        if self._cache.get("loaded"):
             return
         try:
             with open(DATA_DIR / "syndromes.yaml", encoding="utf-8") as f:
-                self._syndromes = (yaml.safe_load(f) or {}).get("syndromes", [])
+                self._syndromes[:] = (yaml.safe_load(f) or {}).get("syndromes", [])
             with open(DATA_DIR / "formulas.yaml", encoding="utf-8") as f:
-                self._formulas = (yaml.safe_load(f) or {}).get("formulas", [])
+                self._formulas[:] = (yaml.safe_load(f) or {}).get("formulas", [])
             with open(DATA_DIR / "contraindications.yaml", encoding="utf-8") as f:
-                self._contraindications = yaml.safe_load(f) or {}
+                loaded = yaml.safe_load(f) or {}
+                self._contraindications.clear()
+                self._contraindications.update(loaded)
             logger.info("Loaded %d syndromes, %d formulas", len(self._syndromes), len(self._formulas))
         except Exception as e:
             logger.error("Failed to load TCM data: %s", e)
-        self._loaded = True
+        self._cache["loaded"] = True
 
     def identify_syndrome(self, symptoms: str) -> list[dict[str, Any]]:
         self._load()
         results = []
         for syndrome in self._syndromes:
-            matched = [s for s in syndrome.get("symptoms", []) if s in symptoms]
+            matched = [s for s in syndrome.get("symptoms", []) if _symptom_matched(symptoms, s)]
             if matched:
                 total = len(syndrome.get("symptoms", []))
                 score = len(matched) / total if total > 0 else 0.0
@@ -110,8 +138,24 @@ class TCMAssistant:
                 f"返回JSON: {{'syndrome': str, 'formula': str, 'herbs': [str], 'reasoning': str}}"
             )}],
             max_tokens=1024,
+            response_schema=TCMAnalysisResult,
         )
         if result.error:
             logger.error("TCM analyze error: %s", result.error)
             return {"source": "ai", "error": result.error}
-        return {"source": "ai", "raw": result.content}
+        if result.parsed:
+            herbs = result.parsed.herbs
+            contraindications = self.check_contraindications(herbs) if herbs else []
+            logger.warning(
+                "TCM analyze used LLM-generated herbs — UNVERIFIED, not from formula DB: %s",
+                herbs,
+            )
+            return {
+                "source": SOURCE_AI_UNVERIFIED,
+                "syndrome": result.parsed.syndrome,
+                "formula": result.parsed.formula,
+                "herbs": herbs,
+                "reasoning": result.parsed.reasoning,
+                "contraindications": contraindications,
+            }
+        return {"source": SOURCE_AI_UNVERIFIED, "raw": result.content}

@@ -47,7 +47,7 @@ async def generate_summary_stream(request: Request, body: SummaryRequest):
             f"{body.clinical_notes[:8000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/discharge")
@@ -72,7 +72,7 @@ async def generate_discharge_stream(request: Request, body: DischargeRequest):
             f"Meds: {body.discharge_meds[:2000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/vitals")

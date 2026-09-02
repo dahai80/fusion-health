@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-138-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-148-success.svg)](tests/)
 
 [快速开始](#快速开始) · [CLI 参考](#cli-参考) · [架构](#架构) · [文档](docs/)
 
@@ -292,6 +292,46 @@ fusion-health tui
 | **中国合规** | ❌ 违反 PIPL | ✅ **完全合规** |
 | **零 API 费用** | ❌ 企业订阅 | ✅ **免费** |
 | **中医支持** | ❌ 有限 | ✅ **原生支持** |
+
+---
+
+## 更新日志
+
+### v1.0.9 — 安全与医疗安全审计修复
+
+对抗式审计发现 7 项阻塞 + 约 20 项 P0–P3 问题，覆盖安全、并发、医疗安全、性能。已全部修复。
+
+**安全 (F1–F4)**
+- 重写 `APIKeyMiddleware`：默认拒绝、路径归一化（防御 `//api//...` 绕过）、owner-id 注入（key 的 sha256）。非回环地址无 key 请求返回 401。
+- 对话会话以 `(owner_id, session_id)` 为键 — 一个 owner 无法读取/列出/删除另一个 owner 的会话。`MAX_SESSIONS=1000`，按 owner LRU 淘汰并关闭 gateway。
+- SSE 流式加固：15s 心跳、客户端断连检测、`finally` 中清理 gateway、`on_done` 回调将助手消息落盘到历史（流式与非流式历史一致）。
+- 中医 `analyze` 通过 `TCMAnalysisResult` schema 校验 LLM 输出，标记 `ai_generated_unverified`（不作为权威结论呈现）。EHR `ClinicalSummary`/`VitalsResult` 携带相同 `source` 标记 + 告警日志。
+
+**并发与内存 (B1–B6)**
+- `ConversationMemory` 系统消息处理：`add_system_message` 原地更新，`_trim_short_term` 保留系统消息，淘汰最旧的 user/assistant 轮次到长期记忆。`load()` 校验消息角色，跳过异常条目。
+- `BatchProcessor` 结果/错误为单次运行的局部变量（无跨运行泄漏）；文件 I/O 卸载到线程。
+- 会话删除与淘汰调用 `session.close()`（释放 LLM gateway）。
+
+**医疗安全 (A1–A5)**
+- 中医症状匹配处理否定（`不/无/未/没/非/勿/否`），"无发热" 不再匹配 "发热"。
+- ICD/DRG/目录数据库按 `data_dir` 在类级别缓存（每进程解析一次，非每请求），实例仍按请求创建以兼容 mock。
+- CLI `_safe_input`/`_safe_output` 辅助函数校验路径并创建父目录。
+- ehr/insurance/literature/compliance/tcm 的 SSE 路由将 gateway 传给 `sse_response` 以便清理。
+
+**性能 (P1–P3)**
+- `LiteratureRetriever` 通过 `asyncio.gather` 并行拉取 PubMed + Semantic Scholar（DOI 去重保留）。
+- PubMed / Semantic Scholar / Artifact 客户端使用惰性实例级 `httpx.AsyncClient` + `aclose()`。
+
+**测试 (M3)**
+- 新增 `tests/test_audit_security.py`：中间件路径绕过、会话 owner 隔离、流式历史一致性。148 项测试通过，`ruff check .` 干净。
+
+### v1.0.8 — 端口冲突与 CI 修复
+
+API 端口从 11456 迁移到 11469（避免与 fusion-simulation-metrics 冲突，关闭 #16）。CI 修复（ruff + api extras）。动态版本。
+
+### v1.0.7 — 生产加固
+
+CI、开箱即用 API key、API 鉴权默认开启。
 
 ---
 

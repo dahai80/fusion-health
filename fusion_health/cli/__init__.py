@@ -3,8 +3,24 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_input(path: str) -> str:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Input file not found: {path}")
+    return p.read_text(encoding="utf-8", errors="replace")
+
+
+def _safe_output(path: str, content: str):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
 
 
 def main():
@@ -95,7 +111,7 @@ def main():
 
 async def _cmd_ehr(args, config):
     from fusion_health.ehr.processor import EHRProcessor
-    text = Path(args.input).read_text(encoding="utf-8", errors="replace")
+    text = _safe_input(args.input)
     ehr = EHRProcessor(config=config)
     if args.action == "summary":
         result = await ehr.generate_summary(text)
@@ -105,14 +121,14 @@ async def _cmd_ehr(args, config):
         result = await ehr.extract_vitals(text)
     output = json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, dict) else str(result)
     if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
+        _safe_output(args.output, output)
     else:
         print(output)
 
 
 async def _cmd_code(args, config):
     from fusion_health.insurance.coder import InsuranceCoder
-    text = Path(args.input).read_text(encoding="utf-8", errors="replace") if Path(args.input).exists() else args.input
+    text = _safe_input(args.input) if Path(args.input).exists() else args.input
     coder = InsuranceCoder(config=config)
     if args.action == "icd10":
         result = await coder.suggest_icd_codes(text)
@@ -122,7 +138,7 @@ async def _cmd_code(args, config):
         result = await coder.audit_claim({"text": text})
     output = json.dumps(result, indent=2, ensure_ascii=False)
     if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
+        _safe_output(args.output, output)
     else:
         print(output)
 
@@ -133,14 +149,14 @@ async def _cmd_literature(args, config):
     results = await lit.search(args.query, args.max_results)
     output = json.dumps(results, indent=2, ensure_ascii=False)
     if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
+        _safe_output(args.output, output)
     else:
         print(output)
 
 
 async def _cmd_compliance(args, config):
     from fusion_health.compliance.checker import ComplianceChecker
-    text = Path(args.input).read_text(encoding="utf-8", errors="replace")
+    text = _safe_input(args.input)
     cc = ComplianceChecker(config=config)
     if args.action == "audit":
         result = await cc.audit_documentation(text)
@@ -148,7 +164,7 @@ async def _cmd_compliance(args, config):
         result = await cc.check_regulatory_compliance(args.type, text)
     output = json.dumps(result, indent=2, ensure_ascii=False)
     if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
+        _safe_output(args.output, output)
     else:
         print(output)
 
@@ -219,9 +235,9 @@ def _cmd_template(args, config):
             return
         context = {}
         if args.data:
-            context = json.loads(Path(args.data).read_text(encoding="utf-8"))
+            context = json.loads(_safe_input(args.data))
         result = engine.render(args.name, context)
         if args.output:
-            Path(args.output).write_text(result, encoding="utf-8")
+            _safe_output(args.output, result)
         else:
             print(result)

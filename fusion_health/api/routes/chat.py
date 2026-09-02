@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
 
 from ...conversation import ConversationSession
 from ...llm_gateway import LLMGateway
@@ -16,16 +17,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_SESSIONS = 1000
-_sessions: dict[str, ConversationSession] = {}
-_session_times: dict[str, float] = {}
+_sessions: dict[tuple[str, str], ConversationSession] = {}
+_session_times: dict[tuple[str, str], float] = {}
+
+DEFAULT_OWNER = "anonymous"
 
 
-def _evict_if_over():
-    while len(_sessions) > MAX_SESSIONS:
-        oldest_sid = min(_session_times, key=_session_times.get)
-        _sessions.pop(oldest_sid, None)
-        _session_times.pop(oldest_sid, None)
-        logger.info("Evicted oldest chat session: %s", oldest_sid)
+def _owner(request: Request) -> str:
+    return getattr(request.state, "owner_id", DEFAULT_OWNER)
+
+
+async def _evict_if_over(owner: str):
+    owner_sessions = {k: v for k, v in _session_times.items() if k[0] == owner}
+    while len(owner_sessions) > MAX_SESSIONS:
+        oldest_key = min(owner_sessions, key=owner_sessions.get)
+        evicted = _sessions.pop(oldest_key, None)
+        _session_times.pop(oldest_key, None)
+        del owner_sessions[oldest_key]
+        if evicted is not None:
+            try:
+                await evicted.close()
+            except Exception as e:
+                logger.warning("Error closing evicted session %s: %s", oldest_key[1], e)
+        logger.info("Evicted oldest chat session: %s/%s", oldest_key[0], oldest_key[1])
 
 
 class ChatStartRequest(BaseModel):
@@ -42,23 +56,34 @@ class ChatSaveRequest(BaseModel):
     session_id: str = Field(..., min_length=1)
 
 
+def _not_found(session_id: str) -> JSONResponse:
+    return JSONResponse(
+        {"error": "session_not_found", "session_id": session_id},
+        status_code=404,
+    )
+
+
 @router.post("/start")
 async def start_session(request: Request, body: ChatStartRequest) -> dict[str, Any]:
+    owner = _owner(request)
     config = request.app.state.config
     session = ConversationSession(config)
     sid = session.start(session_id=body.session_id, system_prompt=body.system_prompt)
-    _sessions[sid] = session
-    _session_times[sid] = time.time()
-    _evict_if_over()
+    key = (owner, sid)
+    _sessions[key] = session
+    _session_times[key] = time.time()
+    await _evict_if_over(owner)
     return {"session_id": sid, "status": "started"}
 
 
 @router.post("/message")
 async def send_message(request: Request, body: ChatMessageRequest) -> dict[str, Any]:
-    session = _sessions.get(body.session_id)
+    owner = _owner(request)
+    key = (owner, body.session_id)
+    session = _sessions.get(key)
     if not session:
-        return {"error": "session_not_found", "session_id": body.session_id}
-    _session_times[body.session_id] = time.time()
+        return _not_found(body.session_id)
+    _session_times[key] = time.time()
     result = await session.chat(body.message)
     return {
         "session_id": body.session_id,
@@ -70,45 +95,56 @@ async def send_message(request: Request, body: ChatMessageRequest) -> dict[str, 
 
 @router.post("/message/stream")
 async def send_message_stream(request: Request, body: ChatMessageRequest):
-    session = _sessions.get(body.session_id)
+    owner = _owner(request)
+    key = (owner, body.session_id)
+    session = _sessions.get(key)
     if not session:
-        from starlette.responses import JSONResponse
-        return JSONResponse({"error": "session_not_found", "session_id": body.session_id}, status_code=404)
-    _session_times[body.session_id] = time.time()
+        return _not_found(body.session_id)
+    _session_times[key] = time.time()
     session.memory.add_user_message(body.message)
     config = request.app.state.config
     gateway = LLMGateway(config)
     tokens = gateway.chat_stream(messages=session.memory.get_messages())
-    return sse_response(tokens)
+
+    async def _on_done(full_content: str):
+        session.memory.add_assistant_message(full_content)
+
+    return sse_response(tokens, request, gateway, on_done=_on_done)
 
 
 @router.post("/save")
 async def save_session(request: Request, body: ChatSaveRequest) -> dict[str, Any]:
-    session = _sessions.get(body.session_id)
+    owner = _owner(request)
+    key = (owner, body.session_id)
+    session = _sessions.get(key)
     if not session:
-        return {"error": "session_not_found", "session_id": body.session_id}
+        return _not_found(body.session_id)
     session.save()
     return {"session_id": body.session_id, "status": "saved"}
 
 
 @router.get("/sessions")
-async def list_sessions() -> dict[str, Any]:
+async def list_sessions(request: Request) -> dict[str, Any]:
+    owner = _owner(request)
     return {
         "sessions": [
-            {"session_id": sid, "turn_count": s.memory.turn_count}
-            for sid, s in _sessions.items()
+            {"session_id": key[1], "turn_count": s.memory.turn_count}
+            for key, s in _sessions.items()
+            if key[0] == owner
         ]
     }
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str) -> dict[str, Any]:
-    session = _sessions.pop(session_id, None)
-    _session_times.pop(session_id, None)
+async def delete_session(request: Request, session_id: str) -> dict[str, Any]:
+    owner = _owner(request)
+    key = (owner, session_id)
+    session = _sessions.pop(key, None)
+    _session_times.pop(key, None)
     if session:
         try:
             await session.close()
         except Exception as e:
             logger.warning("Error closing session %s: %s", session_id, e)
         return {"session_id": session_id, "status": "deleted"}
-    return {"error": "session_not_found", "session_id": session_id}
+    return _not_found(session_id)

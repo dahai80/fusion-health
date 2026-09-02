@@ -100,7 +100,8 @@ class TestInsuranceCoder:
 
     @pytest.mark.asyncio
     async def test_audit_claim(self):
-        audit_result = ClaimAuditResult(issues=["Missing diagnosis code"])
+        from fusion_health.schemas.insurance import ClaimIssueItem
+        audit_result = ClaimAuditResult(issues=[ClaimIssueItem(detail="Missing diagnosis code")])
         with patch.object(LLMGateway, "chat", new=AsyncMock(return_value=_llm_result(parsed=audit_result))):
             coder = InsuranceCoder(config=_make_config())
             result = await coder.audit_claim({"diagnosis": "I10"})

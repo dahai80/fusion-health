@@ -37,7 +37,10 @@ class ConversationMemory:
         self._trim_short_term()
 
     def add_system_message(self, content: str):
-        self._short_term.insert(0, {"role": "system", "content": content})
+        if self._short_term and self._short_term[0].get("role") == "system":
+            self._short_term[0] = {"role": "system", "content": content}
+        else:
+            self._short_term.insert(0, {"role": "system", "content": content})
 
     def get_messages(self, include_long_term: bool = True) -> list[dict[str, str]]:
         messages = []
@@ -47,15 +50,13 @@ class ConversationMemory:
         return messages
 
     def _trim_short_term(self):
-        while len(self._short_term) > self._max_short_term:
-            for i in range(len(self._short_term)):
-                if self._short_term[i].get("role") != "system":
-                    removed = self._short_term.pop(i)
-                    if removed.get("role") in ("user", "assistant"):
-                        self._long_term.append(removed)
-                    break
-            else:
-                break
+        non_system = [m for m in self._short_term if m.get("role") != "system"]
+        system_msgs = [m for m in self._short_term if m.get("role") == "system"]
+        while len(non_system) > self._max_short_term:
+            evicted = non_system.pop(0)
+            if evicted.get("role") in ("user", "assistant"):
+                self._long_term.append(evicted)
+        self._short_term = system_msgs + non_system
         if len(self._long_term) > 100:
             self._long_term = self._long_term[-50:]
 
@@ -76,11 +77,30 @@ class ConversationMemory:
 
     def load(self, path: Path) -> str:
         data = json.loads(path.read_text(encoding="utf-8"))
-        self._session_id = data.get("session_id", "")
-        self._short_term = data.get("short_term", [])
-        self._long_term = data.get("long_term", [])
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid conversation file (not an object): {path}")
+        session_id = data.get("session_id", "")
+        if not isinstance(session_id, str):
+            raise ValueError(f"Invalid session_id in conversation file: {path}")
+        short_term = self._validate_messages(data.get("short_term", []), path, "short_term")
+        long_term = self._validate_messages(data.get("long_term", []), path, "long_term")
+        self._session_id = session_id
+        self._short_term = short_term
+        self._long_term = long_term
         logger.info("Conversation loaded: %s, msgs=%d", self._session_id, len(self._short_term))
         return self._session_id
+
+    @staticmethod
+    def _validate_messages(messages: list, path: Path, field: str) -> list[dict[str, str]]:
+        if not isinstance(messages, list):
+            raise ValueError(f"Invalid {field} in conversation file (not a list): {path}")
+        valid: list[dict[str, str]] = []
+        for i, m in enumerate(messages):
+            if not isinstance(m, dict) or m.get("role") not in ("system", "user", "assistant"):
+                logger.warning("Skipping invalid message at %s[%d]: %r", field, i, m)
+                continue
+            valid.append({"role": m["role"], "content": str(m.get("content", ""))})
+        return valid
 
     @property
     def session_id(self) -> str:

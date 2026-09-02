@@ -8,7 +8,7 @@ Process medical records, generate clinical summaries, suggest ICD-10/CPT codes, 
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-128-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-148-success.svg)](tests/)
 
 [Quick Start](#quick-start) · [CLI Reference](#cli-reference) · [Architecture](#architecture) · [Documentation](docs/)
 
@@ -292,6 +292,46 @@ fusion-health tui
 | **China compliance** | ❌ Violates PIPL | ✅ **Full compliance** |
 | **Zero API cost** | ❌ Enterprise | ✅ **Free** |
 | **Chinese medical support** | ❌ Limited | ✅ **Native** |
+
+---
+
+## Changelog
+
+### v1.0.9 — Security & Medical-Safety Audit Fixes
+
+Adversarial audit found 7 blocking items + ~20 P0–P3 issues across security, concurrency, medical safety, and performance. All fixed.
+
+**Security (F1–F4)**
+- `APIKeyMiddleware` rewritten: default-deny, path normalization (defeats `//api//...` bypass), owner-id injection (sha256 of key). Non-loopback requests without a key return 401.
+- Chat sessions keyed by `(owner_id, session_id)` — one owner cannot read/list/delete another's sessions. `MAX_SESSIONS=1000` with per-owner LRU eviction + gateway close.
+- SSE streaming hardened: 15s heartbeat, client-disconnect detection, gateway cleanup in `finally`, `on_done` callback persists the assistant message to history (stream/non-stream history now consistent).
+- TCM `analyze` validates LLM output via `TCMAnalysisResult` schema and marks results `ai_generated_unverified` (never presented as authoritative). EHR `ClinicalSummary`/`VitalsResult` carry the same `source` marker + warning log.
+
+**Concurrency & Memory (B1–B6)**
+- `ConversationMemory` system-message handling: `add_system_message` updates in place, `_trim_short_term` preserves system messages while evicting oldest user/assistant turns to long-term. `load()` validates message roles and skips malformed entries.
+- `BatchProcessor` results/errors are per-run locals (no cross-run leakage); file I/O offloaded to threads.
+- Chat session deletion and eviction call `session.close()` (releases LLM gateway).
+
+**Medical Safety (A1–A5)**
+- TCM symptom matching handles negation (`不/无/未/没/非/勿/否`) so "无发热" no longer matches "发热".
+- ICD/DRG/catalog databases cached at class level per `data_dir` (parsed once per process, not per request) while instances stay per-request for mock compatibility.
+- CLI `_safe_input`/`_safe_output` helpers validate paths and create parent dirs.
+- SSE routes for ehr/insurance/literature/compliance/tcm pass the gateway to `sse_response` for cleanup.
+
+**Performance (P1–P3)**
+- `LiteratureRetriever` fetches PubMed + Semantic Scholar in parallel via `asyncio.gather` (DOI dedup preserved).
+- PubMed / Semantic Scholar / Artifact clients use lazy instance-level `httpx.AsyncClient` with `aclose()`.
+
+**Tests (M3)**
+- Added `tests/test_audit_security.py`: middleware path bypass, session owner isolation, stream history consistency. 148 tests pass, `ruff check .` clean.
+
+### v1.0.8 — Port Conflict & CI Repair
+
+API port moved 11456 → 11469 (avoids collision with fusion-simulation-metrics, closes #16). CI repaired (ruff + api extras). Dynamic version.
+
+### v1.0.7 — Production Hardening
+
+CI, out-of-box API key, API auth default-on.
 
 ---
 

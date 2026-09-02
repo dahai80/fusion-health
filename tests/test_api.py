@@ -466,7 +466,7 @@ class TestChatSessionManagement:
 
     def test_chat_save_missing_session(self, client):
         resp = client.post("/api/v1/chat/save", json={"session_id": "no-such"})
-        assert resp.status_code == 200
+        assert resp.status_code == 404
         assert resp.json()["error"] == "session_not_found"
 
     def test_session_eviction(self, client):

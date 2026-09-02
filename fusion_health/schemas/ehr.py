@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
+
+SOURCE_AI_GENERATED = "ai_generated_unverified"
 
 
 class ClinicalSummary(BaseModel):
-    chief_complaint: Any = ""
-    history: Any = ""
-    examination_findings: Any = ""
-    diagnosis: Any = ""
-    treatment_plan: Any = ""
-    confidence_notes: Any = ""
+    chief_complaint: str = ""
+    history: str = ""
+    examination_findings: str = ""
+    diagnosis: str = ""
+    treatment_plan: str = ""
+    confidence_notes: str = ""
 
 
 class DischargeSummary(BaseModel):
