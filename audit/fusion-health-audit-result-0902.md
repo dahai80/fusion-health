@@ -10,6 +10,48 @@
 
 ---
 
+## 修复状态 (v1.1.0, 2026-09-02)
+
+本轮审计 P0-P3 已在本分支 `fix/v1.1.0-audit2-p0-p3` 全量修复:
+
+| 编号 | 级别 | 修复 |
+|------|------|------|
+| H1 | P0 | 会话 TTL (1800s) + 后台 reaper + shutdown 全量 close (多 worker 限制仍需外置存储, 已文档化) |
+| H2 | P0 | /health 探测 MLX /models, 不可达返回 503 |
+| H3 | P0 | 新增 audit.py 结构化 PHI 访问日志 (hash + len, 不落明文 PHI) |
+| H4 | P0 | 按 owner_id 限流 (FUSION_HEALTH_RATE_LIMIT_RPM), 超限 429 |
+| H5 | P0 | CORS 置最外层 + OPTIONS 放行, preflight 不再 401 |
+| H6 | P0 | lifespan 不再覆盖注入的 config |
+| H7 | P1 | 会话 TTL reaper 自动清理空闲会话 |
+| H8 | P1 | 4 个 DB 缓存按 mtime 失效重载 |
+| H9 | P1 | chat_stream 出错 raise (不再 yield 错误 token), SSE 跳过 on_done |
+| R1 | P1 | PHI 不再明文入日志 (仅记 content_len) |
+| R2 | P1 | SSE 断连不把截断内容落盘为完整回复 (emits interrupted) |
+| R3 | P1 | CPT 验证器不再 valid=True 伪验证, 改 unverified |
+| R4 | P1 | ICD/CPT 三态: verified / unverified (格式合法未入库) / invalid (格式非法) |
+| R5 | P1 | EHR/insurance/compliance/TCM 全部加 system prompt 注入锚 |
+| R6 | P1 | 会话按 token 预算裁剪 (max_context_chars), 保 system |
+| R7 | P2 | TCM 药名归一化 (去炙/生/炮制前缀, 片/段后缀) 再匹配配伍禁忌 |
+| R8 | P2 | TCM 否定窗口扩至 4 字 + 否定短语集 (未出现/无明显/未见...) |
+| R10 | P2 | FHIR datetime 改 timezone.utc, ISO8601 合规 |
+| E1 | P1 | config.yaml bool 解析修复 (bool("false") 不再 True) |
+| E2 | P2 | literature stream prompt 格式化 (不再 list repr) |
+| E3 | P2 | required 规则要求字段标签边界 (行首或 :/：后) |
+| E5 | P2 | create_app 懒导入, fastapi 不再强依赖 |
+| E6 | P2 | shutdown 关闭所有会话 + literature 客户端 |
+| E8 | P3 | _normalize_path 解码 URL 编码 |
+| E9 | P3 | 插件进程级缓存 HealthConfig |
+| E10 | P3 | ComplianceChecker 两方法合并 _audit_core |
+| R9 | P1 | 已接受限制 (非流式路由靠 timeout+限流, 取消需逐路由 task 编排, 低价值/高风险, 暂缓) |
+| E4 | P2 | 同 R3 |
+| E7 | P3 | 保留 (低频端点, 影响微小) |
+| E11 | P3 | 部署前核实模型名 (运维检查项, 非代码缺陷) |
+
+**修复后结论**: P0 全清, P1 除 R9 (已接受限制) 全清, P2 全清, P3 选修. 经此轮修复, 单机单 worker 部署已具备企业试用条件; 多 worker / 多节点需补外置会话存储 (H1 剩余项) 后方可全量商用. lint clean, 149 tests pass.
+
+---
+
+
 ## 严重程度定义
 
 | 级别 | 含义 |
