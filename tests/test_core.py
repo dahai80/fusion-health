@@ -287,13 +287,22 @@ class TestInsuranceCoderWithValidator:
             assert result[0]["status"] == "verified"
 
     @pytest.mark.asyncio
-    async def test_suggest_icd_codes_ai_suggested(self):
+    async def test_suggest_icd_codes_unverified(self):
         icd_result = ICDCodeResult(codes=[ICDCodeItem(code="Z99.99", description="Hallucinated")])
         with patch.object(LLMGateway, "chat", new=AsyncMock(return_value=_llm_result(parsed=icd_result))):
             coder = InsuranceCoder(config=_make_config())
             result = await coder.suggest_icd_codes("test")
             assert result[0]["code"] == "Z99.99"
-            assert result[0]["status"] == "ai_suggested"
+            assert result[0]["status"] == "unverified"
+
+    @pytest.mark.asyncio
+    async def test_suggest_icd_codes_invalid_format(self):
+        icd_result = ICDCodeResult(codes=[ICDCodeItem(code="99999", description="Bad")])
+        with patch.object(LLMGateway, "chat", new=AsyncMock(return_value=_llm_result(parsed=icd_result))):
+            coder = InsuranceCoder(config=_make_config())
+            result = await coder.suggest_icd_codes("test")
+            assert result[0]["code"] == "99999"
+            assert result[0]["status"] == "invalid"
 
 
 class TestLiteratureClients:

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from ...audit import log_access
 from ...literature.retriever import LiteratureRetriever
 from ...llm_gateway import LLMGateway
 from ..sse import sse_response
@@ -25,18 +26,35 @@ class EvidenceRequest(BaseModel):
     literature: list[dict] = Field(default_factory=list)
 
 
+def _req_id(request: Request) -> str:
+    return getattr(request.state, "request_id", "")
+
+
+def _owner(request: Request) -> str:
+    return getattr(request.state, "owner_id", "anonymous")
+
+
 @router.post("/search")
 async def search_literature(request: Request, body: SearchRequest) -> list[dict[str, Any]]:
     config = request.app.state.config
     retriever = LiteratureRetriever(config)
-    return await retriever.search(body.query, body.max_results)
+    try:
+        results = await retriever.search(body.query, body.max_results)
+    finally:
+        await retriever.aclose()
+    log_access(_owner(request), "POST", "/api/v1/literature/search", "lit_search", "ok", body.query, _req_id(request))
+    return results
 
 
 @router.post("/evidence")
 async def summarize_evidence(request: Request, body: EvidenceRequest) -> dict[str, Any]:
     config = request.app.state.config
     retriever = LiteratureRetriever(config)
-    summary = await retriever.summarize_evidence(body.topic, body.literature)
+    try:
+        summary = await retriever.summarize_evidence(body.topic, body.literature)
+    finally:
+        await retriever.aclose()
+    log_access(_owner(request), "POST", "/api/v1/literature/evidence", "lit_evidence", "ok", body.topic, _req_id(request))
     return {"evidence_summary": summary}
 
 
@@ -44,10 +62,18 @@ async def summarize_evidence(request: Request, body: EvidenceRequest) -> dict[st
 async def summarize_evidence_stream(request: Request, body: EvidenceRequest):
     config = request.app.state.config
     gateway = LLMGateway(config)
+    lit_text = "\n".join(
+        f"- {item.get('title', '?')}: {item.get('summary', '')[:200]}"
+        for item in body.literature[:10]
+    )
     tokens = gateway.chat_stream(
         messages=[{"role": "user", "content": (
-            f"Summarize the evidence on this topic: {body.topic}\n\n"
-            f"Literature: {body.literature[:10]}"
+            f"Summarize clinical evidence for: {body.topic}\n\nLiterature:\n{lit_text}\n\n"
+            f"Provide evidence-based recommendations with citations."
         )}],
     )
     return sse_response(tokens, request, gateway)
+
+
+async def close_all_clients():
+    logger.info("Literature route shutdown — clients are per-request, nothing to close")

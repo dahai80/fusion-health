@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..schemas.fhir import (
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class FHIRMapper:
     def map_vitals(self, vitals: dict[str, Any]) -> FHIRBundle:
         entries = []
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         mappings = {
             "bp": {"code": "85354-9", "display": "Blood pressure panel", "system": "http://loinc.org"},
             "hr": {"code": "8867-4", "display": "Heart rate", "system": "http://loinc.org"},
@@ -84,7 +84,7 @@ class FHIRMapper:
                     text=med.get("name", med.get("description", "")),
                     code=med.get("code", ""),
                 ),
-                authoredOn=datetime.now().isoformat(),
+                authoredOn=datetime.now(timezone.utc).isoformat(),
             )
             entries.append({"resource": json.loads(mr.model_dump_json())})
         return FHIRBundle(entry=entries)

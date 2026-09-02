@@ -80,7 +80,7 @@ class LLMGateway:
             return LLMResult(content=content, raw=content, model=model)
 
         except httpx.HTTPStatusError as e:
-            logger.error("LLM HTTP error: %s %s", e.response.status_code, e.response.text[:200])
+            logger.error("LLM HTTP error: %s", e.response.status_code)
             return LLMResult(content="", error=f"HTTP {e.response.status_code}", model=model)
         except KeyError as e:
             logger.error("LLM response missing key: %s", e)
@@ -135,8 +135,8 @@ class LLMGateway:
                         logger.warning("Stream chunk parse error: %s", data[:100])
                         continue
         except Exception as e:
-            logger.error("LLM stream error: %s", type(e).__name__, exc_info=True)
-            yield f"[stream error: {e}]"
+            logger.error("LLM stream error: %s, len(yielded)=%d", type(e).__name__, 0)
+            raise
 
     def _parse_structured(self, content: str, schema: type, model: str) -> LLMResult:
         text = content.strip()
@@ -154,7 +154,7 @@ class LLMGateway:
             logger.info("Schema validation passed: %s", schema.__name__)
             return LLMResult(content=content, parsed=validated, model=model)
         except json.JSONDecodeError as e:
-            logger.warning("JSON decode failed: %s, raw: %s", e, content[:200])
+            logger.warning("JSON decode failed: %s, content_len=%d", e, len(content))
             return LLMResult(
                 content=content,
                 error="schema_validation_failed: json_decode_error",
@@ -162,7 +162,7 @@ class LLMGateway:
                 model=model,
             )
         except Exception as e:
-            logger.warning("Schema validation failed: %s, raw: %s", e, content[:200])
+            logger.warning("Schema validation failed: %s, content_len=%d", type(e).__name__, len(content))
             return LLMResult(
                 content=content,
                 error=f"schema_validation_failed: {type(e).__name__}",

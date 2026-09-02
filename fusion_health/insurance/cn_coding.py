@@ -13,33 +13,40 @@ logger = logging.getLogger(__name__)
 
 
 class ICD9CM3Validator:
-    _DB_CACHE: dict[str, dict[str, dict]] = {}
+    _DB_CACHE: dict[str, dict[str, Any]] = {}
 
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {"codes": {}, "mtime": -1.0})
 
     def _load(self):
-        if self._db:
-            return
         db_path = self.config.data_dir / "icd9cm3_cn" / "icd9cm3_cn.tsv"
+        try:
+            mtime = db_path.stat().st_mtime if db_path.exists() else -1.0
+        except OSError:
+            mtime = -1.0
+        if self._db.get("codes") and self._db.get("mtime") == mtime:
+            return
         if not db_path.exists():
             logger.warning("ICD-9-CM-3 CN database not found at %s", db_path)
             return
         try:
+            codes: dict[str, dict] = {}
             with open(db_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter="\t")
                 for row in reader:
                     code = row.get("code", "").strip()
                     if code:
-                        self._db[code] = row
-            logger.info("Loaded %d ICD-9-CM-3 CN codes", len(self._db))
+                        codes[code] = row
+            self._db["codes"] = codes
+            self._db["mtime"] = mtime
+            logger.info("Loaded %d ICD-9-CM-3 CN codes (mtime=%s)", len(codes), mtime)
         except Exception as e:
             logger.error("Failed to load ICD-9-CM-3 CN: %s", e)
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
-        entry = self._db.get(code)
+        entry = self._db["codes"].get(code)
         if entry:
             return {
                 "valid": True,
@@ -53,7 +60,7 @@ class ICD9CM3Validator:
         self._load()
         results = []
         keyword_lower = keyword.lower()
-        for code, entry in self._db.items():
+        for code, entry in self._db["codes"].items():
             desc = entry.get("description", "").lower()
             if keyword_lower in desc or keyword_lower in code:
                 results.append({"code": code, **entry})
@@ -63,27 +70,34 @@ class ICD9CM3Validator:
 
 
 class DRGHelper:
-    _DB_CACHE: dict[str, dict[str, dict]] = {}
+    _DB_CACHE: dict[str, dict[str, Any]] = {}
 
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {"codes": {}, "mtime": -1.0})
 
     def _load(self):
-        if self._db:
-            return
         db_path = self.config.data_dir / "drg" / "drg_cn.tsv"
+        try:
+            mtime = db_path.stat().st_mtime if db_path.exists() else -1.0
+        except OSError:
+            mtime = -1.0
+        if self._db.get("codes") and self._db.get("mtime") == mtime:
+            return
         if not db_path.exists():
             logger.warning("DRG database not found at %s", db_path)
             return
         try:
+            codes: dict[str, dict] = {}
             with open(db_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter="\t")
                 for row in reader:
                     code = row.get("drg_code", "").strip()
                     if code:
-                        self._db[code] = row
-            logger.info("Loaded %d DRG groups", len(self._db))
+                        codes[code] = row
+            self._db["codes"] = codes
+            self._db["mtime"] = mtime
+            logger.info("Loaded %d DRG groups (mtime=%s)", len(codes), mtime)
         except Exception as e:
             logger.error("Failed to load DRG database: %s", e)
 
@@ -91,7 +105,7 @@ class DRGHelper:
         self._load()
         results = []
         keyword = diagnosis_or_procedure.lower()
-        for drg_code, entry in self._db.items():
+        for drg_code, entry in self._db["codes"].items():
             name = entry.get("drg_name", "").lower()
             if keyword in name:
                 results.append({"drg_code": drg_code, **entry})
@@ -101,40 +115,47 @@ class DRGHelper:
 
     def get(self, drg_code: str) -> dict[str, Any] | None:
         self._load()
-        entry = self._db.get(drg_code)
+        entry = self._db["codes"].get(drg_code)
         if entry:
             return {"drg_code": drg_code, **entry}
         return None
 
 
 class InsuranceCatalogMatcher:
-    _DB_CACHE: dict[str, dict[str, dict]] = {}
+    _DB_CACHE: dict[str, dict[str, Any]] = {}
 
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {"codes": {}, "mtime": -1.0})
 
     def _load(self):
-        if self._db:
-            return
         db_path = self.config.data_dir / "insurance_catalog.tsv"
+        try:
+            mtime = db_path.stat().st_mtime if db_path.exists() else -1.0
+        except OSError:
+            mtime = -1.0
+        if self._db.get("codes") and self._db.get("mtime") == mtime:
+            return
         if not db_path.exists():
             logger.warning("Insurance catalog not found at %s", db_path)
             return
         try:
+            codes: dict[str, dict] = {}
             with open(db_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter="\t")
                 for row in reader:
                     code = row.get("code", "").strip()
                     if code:
-                        self._db[code] = row
-            logger.info("Loaded %d insurance catalog entries", len(self._db))
+                        codes[code] = row
+            self._db["codes"] = codes
+            self._db["mtime"] = mtime
+            logger.info("Loaded %d insurance catalog entries (mtime=%s)", len(codes), mtime)
         except Exception as e:
             logger.error("Failed to load insurance catalog: %s", e)
 
     def match(self, icd_code: str) -> dict[str, Any]:
         self._load()
-        entry = self._db.get(icd_code)
+        entry = self._db["codes"].get(icd_code)
         if entry:
             return {
                 "matched": True,

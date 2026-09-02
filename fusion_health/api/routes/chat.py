@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -8,6 +9,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 
+from ...audit import log_access
 from ...conversation import ConversationSession
 from ...llm_gateway import LLMGateway
 from ..sse import sse_response
@@ -17,10 +19,40 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_SESSIONS = 1000
+SESSION_TTL = 1800.0
 _sessions: dict[tuple[str, str], ConversationSession] = {}
 _session_times: dict[tuple[str, str], float] = {}
+_reaper_task: asyncio.Task | None = None
 
 DEFAULT_OWNER = "anonymous"
+
+
+async def _reaper():
+    while True:
+        await asyncio.sleep(300)
+        now = time.time()
+        stale = [k for k, t in _session_times.items() if now - t > SESSION_TTL]
+        for key in stale:
+            session = _sessions.pop(key, None)
+            _session_times.pop(key, None)
+            if session is not None:
+                try:
+                    await session.close()
+                except Exception as e:
+                    logger.warning("Error closing stale session %s: %s", key[1], e)
+            logger.info("Reaped stale chat session: %s/%s", key[0], key[1])
+
+
+async def close_all_sessions():
+    for key in list(_sessions.keys()):
+        session = _sessions.pop(key, None)
+        _session_times.pop(key, None)
+        if session is not None:
+            try:
+                await session.close()
+            except Exception as e:
+                logger.warning("Error closing session %s on shutdown: %s", key[1], e)
+    logger.info("Closed all chat sessions on shutdown")
 
 
 def _owner(request: Request) -> str:
@@ -65,6 +97,9 @@ def _not_found(session_id: str) -> JSONResponse:
 
 @router.post("/start")
 async def start_session(request: Request, body: ChatStartRequest) -> dict[str, Any]:
+    global _reaper_task
+    if _reaper_task is None or _reaper_task.done():
+        _reaper_task = asyncio.create_task(_reaper())
     owner = _owner(request)
     config = request.app.state.config
     session = ConversationSession(config)
@@ -73,6 +108,7 @@ async def start_session(request: Request, body: ChatStartRequest) -> dict[str, A
     _sessions[key] = session
     _session_times[key] = time.time()
     await _evict_if_over(owner)
+    log_access(owner, "POST", "/api/v1/chat/start", "chat_start", "ok", request_id=getattr(request.state, "request_id", ""))
     return {"session_id": sid, "status": "started"}
 
 

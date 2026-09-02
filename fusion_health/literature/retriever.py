@@ -99,3 +99,14 @@ class LiteratureRetriever:
             logger.error("summarize_evidence error: %s", result.error)
             return f"Error: {result.error}"
         return result.content
+
+    async def aclose(self):
+        try:
+            await self._pubmed.aclose()
+        except Exception as e:
+            logger.warning("PubMed client close failed: %s", e)
+        try:
+            await self._s2.aclose()
+        except Exception as e:
+            logger.warning("SemanticScholar client close failed: %s", e)
+        await self._gateway.close()

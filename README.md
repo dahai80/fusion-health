@@ -297,6 +297,34 @@ fusion-health tui
 
 ## Changelog
 
+### v1.1.0 — Second Independent Architecture Audit Fixes
+
+A second independent architect audit found 6 P0, 9 P1, 10 P2, and several P3 issues across architecture boundaries, runtime risk, and engineering implementation. All P0, P1 (except deferred R9), and P2 fixed.
+
+**Architecture P0 (H1–H6)**
+- Chat sessions now TTL-bounded (`FUSION_HEALTH_SESSION_TTL`, default 1800s) with a background reaper that evicts stale sessions every 300s — fixes unbounded in-memory session growth.
+- Rate limiting via token-bucket `RateLimiter` (`FUSION_HEALTH_RATE_LIMIT_RPM`) — per-owner 429 with `retry_after`, no unbounded API exposure.
+- Structured PHI access audit logging (`fusion_health/audit.py`): records owner, method, path, action, status, `phi_input_hash` (sha256[:16]) + length — never raw PHI. JSON-lines append, thread-locked, disable via `FUSION_HEALTH_AUDIT_DISABLED=1`.
+- CORS middleware ordered outermost (added after `APIKeyMiddleware`) + OPTIONS passthrough — preflight no longer blocked by auth.
+- Lifespan no longer discards injected config: `create_app(config)` survives startup; shutdown closes all chat sessions + literature clients.
+- `/api/v1/health` now probes MLX backend `/models` (httpx, 5s timeout) and returns 503 `degraded` with backend error when unreachable — no false-healthy when inference is down.
+
+**Runtime Risk P1 (H7–H9, R1–R6)**
+- Validator DB caches (`ICDValidator`, `ICD9CM3Validator`, `DRGHelper`, `InsuranceCatalogMatcher`) now mtime-based invalidation — file edits picked up without process restart.
+- ICD-10/CPT validation three-state: `verified` (DB hit), `unverified` (format-valid, not in DB), `invalid` (format-mismatch) — no false-positive `valid=True` on format match alone.
+- PHI redaction in LLM gateway logs: decode/schema/validation errors log `content_len` and `status_code`, never raw `content`/`response.text`.
+- SSE stream error path raises instead of emitting a synthetic error token; client-disconnect path emits `interrupted` and skips `on_done` — truncated content no longer persisted as a complete reply.
+- Prompt-injection anchors: system prompts (`SYSTEM_PROMPT` + `_messages()`) added to EHR, coding, compliance, and TCM LLM calls.
+- Conversation context budget: `get_messages` trims by `max_context_chars` (default 96000), preserving system messages — bounded token growth.
+
+**Engineering P2 (R7–R10, E2–E6)**
+- TCM herb normalization + negation-aware contraindication match (4-char window + phrase set) — reduces false 十八反 matches.
+- Compliance rule engine `required` field check requires label boundary — no substring false positives.
+- Literature stream prompt built from joined text, not list repr.
+- `close_all_sessions` / `close_all_clients` shutdown hooks; per-request retriever `aclose()` in `finally`.
+- `import fusion_health` no longer requires fastapi (lazy `__getattr__`).
+- Plugin tools cache `HealthConfig` instead of rebuilding per call.
+
 ### v1.0.9 — Security & Medical-Safety Audit Fixes
 
 Adversarial audit found 7 blocking items + ~20 P0–P3 issues across security, concurrency, medical safety, and performance. All fixed.

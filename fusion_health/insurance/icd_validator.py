@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import re
 from typing import Any
 
 from ..config import HealthConfig
@@ -9,35 +10,45 @@ from ..schemas.base import VerificationStatus
 
 logger = logging.getLogger(__name__)
 
+ICD10_FORMAT_RE = re.compile(r"^[A-Z]\d{2}(\.[A-Z0-9]{1,4})?$")
+
 
 class ICDValidator:
-    _DB_CACHE: dict[str, dict[str, dict]] = {}
+    _DB_CACHE: dict[str, dict[str, Any]] = {}
 
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._icd10_db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
+        cache_key = str(self.config.data_dir)
+        self._icd10_db = self._DB_CACHE.setdefault(cache_key, {"codes": {}, "mtime": -1.0})
 
     def _load(self):
-        if self._icd10_db:
-            return
         db_path = self.config.data_dir / "icd10_cn" / "icd10_cn.tsv"
+        try:
+            mtime = db_path.stat().st_mtime if db_path.exists() else -1.0
+        except OSError:
+            mtime = -1.0
+        if self._icd10_db.get("codes") and self._icd10_db.get("mtime") == mtime:
+            return
         if not db_path.exists():
             logger.warning("ICD-10-CN database not found at %s", db_path)
             return
         try:
+            codes: dict[str, dict] = {}
             with open(db_path, encoding="utf-8") as f:
                 reader = csv.DictReader(f, delimiter="\t")
                 for row in reader:
                     code = row.get("code", "").strip()
                     if code:
-                        self._icd10_db[code] = row
-            logger.info("Loaded %d ICD-10-CN codes from %s", len(self._icd10_db), db_path)
+                        codes[code] = row
+            self._icd10_db["codes"] = codes
+            self._icd10_db["mtime"] = mtime
+            logger.info("Loaded %d ICD-10-CN codes from %s (mtime=%s)", len(codes), db_path, mtime)
         except Exception as e:
             logger.error("Failed to load ICD-10-CN database: %s", e)
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
-        entry = self._icd10_db.get(code)
+        entry = self._icd10_db["codes"].get(code)
         if entry:
             return {
                 "valid": True,
@@ -45,13 +56,16 @@ class ICDValidator:
                 "category": entry.get("category", ""),
                 "status": VerificationStatus.verified,
             }
-        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified}
+        if ICD10_FORMAT_RE.match(code):
+            return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified}
+        logger.warning("ICD-10 code invalid format: %s", code)
+        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.invalid}
 
     def search(self, keyword: str, limit: int = 10) -> list[dict]:
         self._load()
         results = []
         keyword_lower = keyword.lower()
-        for code, entry in self._icd10_db.items():
+        for code, entry in self._icd10_db["codes"].items():
             desc = entry.get("description", "").lower()
             if keyword_lower in desc or keyword_lower in code:
                 results.append({"code": code, **entry})

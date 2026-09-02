@@ -9,6 +9,24 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+_FIELD_BOUNDARY_RE = re.compile(r"[:：\s]")
+
+
+def _field_present(text: str, field: str) -> bool:
+    if not field:
+        return True
+    start = 0
+    while True:
+        pos = text.find(field, start)
+        if pos == -1:
+            return False
+        after = pos + len(field)
+        is_label_start = pos == 0 or text[pos - 1] in "\n\r"
+        is_label_end = after >= len(text) or bool(_FIELD_BOUNDARY_RE.match(text[after]))
+        if is_label_start or is_label_end:
+            return True
+        start = pos + 1
+
 
 class RuleEngine:
     def __init__(self, rules_dir: Path | None = None):
@@ -63,7 +81,7 @@ class RuleEngine:
 
         elif rule_type == "required":
             required = rule.get("fields", [])
-            missing = [f for f in required if f not in text]
+            missing = [f for f in required if not _field_present(text, f)]
             status = "fail" if missing else "pass"
             detail = f"Missing fields: {missing}" if missing else "All required fields present"
 

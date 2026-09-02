@@ -297,6 +297,34 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.1.0 — 第二次独立架构审计修复
+
+第二次独立架构师审计发现 6 项 P0、9 项 P1、10 项 P2 及若干 P3 问题，覆盖架构边界、运行时风险、工程实现。P0 全清，P1 除延期 R9 外全清，P2 全清。
+
+**架构 P0 (H1–H6)**
+- 对话会话现受 TTL 约束（`FUSION_HEALTH_SESSION_TTL`，默认 1800s），后台 reaper 每 300s 淘汰过期会话 — 修复内存会话无限增长。
+- 令牌桶 `RateLimiter` 限流（`FUSION_HEALTH_RATE_LIMIT_RPM`）— 按 owner 返回 429 + `retry_after`，不再无限暴露 API。
+- 结构化 PHI 访问审计日志（`fusion_health/audit.py`）：记录 owner、method、path、action、status、`phi_input_hash`（sha256[:16]）+ 长度 — 绝不记录原始 PHI。JSON 追加、线程锁、`FUSION_HEALTH_AUDIT_DISABLED=1` 关闭。
+- CORS 中间件置于最外层（在 `APIKeyMiddleware` 之后添加）+ OPTIONS 放行 — 预检不再被鉴权拦截。
+- lifespan 不再丢弃注入配置：`create_app(config)` 在启动后存活；关闭时清理所有会话 + 文献客户端。
+- `/api/v1/health` 现探测 MLX 后端 `/models`（httpx，5s 超时），不可达时返回 503 `degraded` 及后端错误 — 推理宕机时不再假健康。
+
+**运行时风险 P1 (H7–H9, R1–R6)**
+- 验证器 DB 缓存（`ICDValidator`、`ICD9CM3Validator`、`DRGHelper`、`InsuranceCatalogMatcher`）现按 mtime 失效 — 文件改动无需重启进程即可生效。
+- ICD-10/CPT 验证三态：`verified`（DB 命中）、`unverified`（格式合法但不在 DB）、`invalid`（格式不符）— 格式匹配不再误判 `valid=True`。
+- LLM 网关日志中 PHI 脱敏：解码/schema/校验错误记录 `content_len` 与 `status_code`，绝不记录原始 `content`/`response.text`。
+- SSE 流错误路径改为 raise 而非合成错误 token；客户端断连路径发送 `interrupted` 并跳过 `on_done` — 截断内容不再作为完整回复落盘。
+- 提示注入锚点：EHR、编码、合规、中医 LLM 调用新增系统提示（`SYSTEM_PROMPT` + `_messages()`）。
+- 对话上下文预算：`get_messages` 按 `max_context_chars`（默认 96000）裁剪，保留系统消息 — token 增长有界。
+
+**工程 P2 (R7–R10, E2–E6)**
+- 中药药名归一化 + 否定感知禁忌匹配（4 字窗口 + 短语集）— 减少十八反误判。
+- 合规规则引擎 `required` 字段检查要求标签边界 — 杜绝子串误报。
+- 文献流式提示由文本拼接而非列表 repr 构建。
+- `close_all_sessions` / `close_all_clients` 关闭钩子；每请求 `retriever.aclose()` 在 `finally` 中执行。
+- `import fusion_health` 不再强依赖 fastapi（惰性 `__getattr__`）。
+- 插件工具缓存 `HealthConfig`，不再每次调用重建。
+
 ### v1.0.9 — 安全与医疗安全审计修复
 
 对抗式审计发现 7 项阻塞 + 约 20 项 P0–P3 问题，覆盖安全、并发、医疗安全、性能。已全部修复。
