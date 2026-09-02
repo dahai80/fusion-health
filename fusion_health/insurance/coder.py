@@ -6,8 +6,9 @@ from typing import Any
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
 from ..schemas.base import VerificationStatus
-from ..schemas.insurance import ICDCodeResult, CPTCodeResult, ClaimAuditResult
+from ..schemas.insurance import ICDCodeResult, CPTCodeResult, ClaimAuditResult, ClaimIssueItem
 from .icd_validator import ICDValidator
+from .cpt_validator import CPTValidator
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class InsuranceCoder:
         self.config = config
         self._gateway = LLMGateway(config)
         self._validator = ICDValidator(config)
+        self._cpt_validator = CPTValidator(config)
 
     async def suggest_icd_codes(self, diagnosis_text: str) -> list[dict[str, Any]]:
         result = await self._gateway.chat(
@@ -59,10 +61,18 @@ class InsuranceCoder:
             response_schema=CPTCodeResult,
         )
         if result.parsed:
-            return [item.model_dump() for item in result.parsed.codes]
+            codes = [item.model_dump() for item in result.parsed.codes]
+            return self._annotate_cpt(codes)
         if result.error:
             logger.error("suggest_cpt_codes error: %s", result.error)
         return []
+
+    def _annotate_cpt(self, codes: list[dict]) -> list[dict]:
+        for item in codes:
+            code = item.get("code", "")
+            validation = self._cpt_validator.validate(code)
+            item["status"] = validation["status"]
+        return codes
 
     async def audit_claim(self, claim_data: dict) -> dict[str, Any]:
         import json
@@ -83,5 +93,7 @@ class InsuranceCoder:
             return result.parsed.model_dump()
         if result.error:
             logger.error("audit_claim error: %s", result.error)
-            return {"error": result.error, "raw": result.raw}
-        return {"issues": [result.content]}
+            return ClaimAuditResult(error=result.error).model_dump()
+        return ClaimAuditResult(
+            issues=[ClaimIssueItem(detail=result.content)],
+        ).model_dump()

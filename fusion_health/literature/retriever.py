@@ -5,7 +5,7 @@ from typing import Any
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
-from ..schemas.literature import LiteratureSearchResult
+from ..schemas.literature import LiteratureSearchResult, SOURCE_AI_UNVERIFIED
 from .pubmed_client import PubMedClient
 from .semantic_scholar import SemanticScholarClient
 
@@ -50,6 +50,10 @@ class LiteratureRetriever:
         return results[:max_results]
 
     async def _search_via_llm(self, query: str, max_results: int) -> list[dict[str, Any]]:
+        logger.warning(
+            "Falling back to LLM-generated literature for query=%r — results are "
+            "AI-generated and UNVERIFIED, not real citations", query,
+        )
         result = await self._gateway.chat(
             messages=[{"role": "user", "content": (
                 f"Search clinical literature for: {query}\n"
@@ -60,7 +64,12 @@ class LiteratureRetriever:
             response_schema=LiteratureSearchResult,
         )
         if result.parsed:
-            return [item.model_dump() for item in result.parsed.results]
+            items = []
+            for item in result.parsed.results:
+                dumped = item.model_dump()
+                dumped["source"] = SOURCE_AI_UNVERIFIED
+                items.append(dumped)
+            return items
         if result.error:
             logger.error("search error: %s", result.error)
         return []

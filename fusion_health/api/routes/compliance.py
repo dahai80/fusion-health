@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ...compliance.checker import ComplianceChecker
 from ...llm_gateway import LLMGateway
@@ -22,6 +22,14 @@ class AuditRequest(BaseModel):
 class RegulatoryRequest(BaseModel):
     document_type: str = Field(..., min_length=1, max_length=100)
     content: str = Field(..., min_length=1, max_length=10000)
+
+    @field_validator("document_type")
+    @classmethod
+    def _validate_document_type(cls, v: str) -> str:
+        from ...compliance.checker import ALLOWED_DOCUMENT_TYPES
+        if v not in ALLOWED_DOCUMENT_TYPES:
+            raise ValueError(f"unsupported document_type: {v}")
+        return v
 
 
 @router.post("/audit")
@@ -56,9 +64,11 @@ async def check_regulatory(request: Request, body: RegulatoryRequest) -> dict[st
 async def check_regulatory_stream(request: Request, body: RegulatoryRequest):
     config = request.app.state.config
     gateway = LLMGateway(config)
+    from ...compliance.checker import _safe_document_type
+    safe_type = _safe_document_type(body.document_type)
     tokens = gateway.chat_stream(
         messages=[{"role": "user", "content": (
-            f"Check this {body.document_type} for regulatory compliance. "
+            f"Check this {safe_type} for regulatory compliance. "
             "Identify any compliance gaps or risks.\n\n"
             f"{body.content[:8000]}"
         )}],

@@ -10,6 +10,21 @@ from .rule_engine import RuleEngine
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_DOCUMENT_TYPES = {
+    "clinical_note": "clinical note",
+    "discharge_summary": "discharge summary",
+    "progress_note": "progress note",
+    "operative_report": "operative report",
+    "consultation_note": "consultation note",
+    "pathology_report": "pathology report",
+    "imaging_report": "imaging report",
+    "clinical_trial": "clinical trial document",
+}
+
+
+def _safe_document_type(document_type: str) -> str:
+    return ALLOWED_DOCUMENT_TYPES.get(document_type, "clinical document")
+
 
 class ComplianceChecker:
     def __init__(self, config: HealthConfig | None = None, mlx_url: str | None = None):
@@ -47,6 +62,7 @@ class ComplianceChecker:
 
         if llm_result.parsed:
             for r in llm_result.parsed.rules_checked:
+                r.ai_analysis = "llm_reference"
                 combined_rules.append(r)
             overall = llm_result.parsed.overall_compliant and len(rule_failures) == 0
         else:
@@ -64,9 +80,10 @@ class ComplianceChecker:
         rule_results = self._rule_engine.check(content)
         rule_failures = [r for r in rule_results if r["status"] == "fail"]
 
+        safe_type = _safe_document_type(document_type)
         llm_result = await self._gateway.chat(
             messages=[{"role": "user", "content": (
-                f"Check this {document_type} for regulatory compliance. "
+                f"Check this {safe_type} for regulatory compliance. "
                 f"Identify any compliance gaps or risks. "
                 f"Return as JSON: {{'overall_compliant': bool, 'rules_checked': [{{'rule_id': str, 'rule_description': str, 'status': 'pass|fail', 'detail': str}}]}}\n\n{content[:3000]}"
             )}],
@@ -86,6 +103,7 @@ class ComplianceChecker:
 
         if llm_result.parsed:
             for r in llm_result.parsed.rules_checked:
+                r.ai_analysis = "llm_reference"
                 combined_rules.append(r)
             overall = llm_result.parsed.overall_compliant and len(rule_failures) == 0
         else:
