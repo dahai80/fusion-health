@@ -10,7 +10,6 @@ from .compliance.checker import ComplianceChecker
 from .compliance.rule_engine import RuleEngine
 from .tcm.assistant import TCMAssistant
 from .artifact_client import ArtifactClient
-from .api.app import create_app
 from .conversation import ConversationSession, ConversationMemory
 from .templates import TemplateEngine
 from .batch import BatchProcessor
@@ -26,3 +25,10 @@ __all__ = [
     "create_app", "ConversationSession", "ConversationMemory",
     "TemplateEngine", "BatchProcessor",
 ]
+
+
+def __getattr__(name: str):
+    if name == "create_app":
+        from .api.app import create_app
+        return create_app
+    raise AttributeError(f"module 'fusion_health' has no attribute {name!r}")

@@ -5,6 +5,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_cached_config = None
+
+
+def _get_config():
+    global _cached_config
+    if _cached_config is None:
+        from ..config import HealthConfig
+        _cached_config = HealthConfig.from_env()
+    return _cached_config
+
 
 class BaseHealthTool:
     name: str = ""
@@ -28,8 +38,7 @@ class EHRSummaryTool(BaseHealthTool):
 
     async def execute(self, clinical_notes: str, **kwargs) -> dict[str, Any]:
         from ..ehr.processor import EHRProcessor
-        from ..config import HealthConfig
-        config = HealthConfig.from_env()
+        config = _get_config()
         processor = EHRProcessor(config=config)
         return await processor.generate_summary(clinical_notes)
 
@@ -47,8 +56,7 @@ class ICD10CodingTool(BaseHealthTool):
 
     async def execute(self, diagnosis_text: str, **kwargs) -> dict[str, Any]:
         from ..insurance.coder import InsuranceCoder
-        from ..config import HealthConfig
-        config = HealthConfig.from_env()
+        config = _get_config()
         coder = InsuranceCoder(config=config)
         codes = await coder.suggest_icd_codes(diagnosis_text)
         return {"codes": codes}
@@ -67,8 +75,7 @@ class TCMSyndromeTool(BaseHealthTool):
 
     async def execute(self, symptoms: str, **kwargs) -> dict[str, Any]:
         from ..tcm.assistant import TCMAssistant
-        from ..config import HealthConfig
-        config = HealthConfig.from_env()
+        config = _get_config()
         assistant = TCMAssistant(config=config)
         return await assistant.analyze(symptoms)
 
@@ -86,8 +93,7 @@ class ComplianceAuditTool(BaseHealthTool):
 
     async def execute(self, clinical_note: str, **kwargs) -> dict[str, Any]:
         from ..compliance.checker import ComplianceChecker
-        from ..config import HealthConfig
-        config = HealthConfig.from_env()
+        config = _get_config()
         checker = ComplianceChecker(config=config)
         return await checker.audit_documentation(clinical_note)
 

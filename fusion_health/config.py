@@ -45,6 +45,7 @@ class HealthConfig:
     rate_limit_rpm: int = 0
     audit_log_path: Path = field(default_factory=lambda: Path.home() / ".fusion-health" / "audit.log")
     session_ttl_seconds: int = 1800
+    max_context_chars: int = 96000
 
     @classmethod
     def from_env(cls) -> HealthConfig:

@@ -47,7 +47,20 @@ class ConversationMemory:
         if include_long_term and self._long_term:
             messages.extend(self._long_term)
         messages.extend(self._short_term)
-        return messages
+        return self._budget_trim(messages)
+
+    def _budget_trim(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        max_chars = int(getattr(self.config, "max_context_chars", 96000))
+        total = sum(len(m.get("content", "")) for m in messages)
+        if total <= max_chars or len(messages) <= 2:
+            return messages
+        system = [m for m in messages if m.get("role") == "system"]
+        rest = [m for m in messages if m.get("role") != "system"]
+        while rest and sum(len(m.get("content", "")) for m in (system + rest)) > max_chars:
+            rest.pop(0)
+        trimmed = system + rest
+        logger.info("Context budget trimmed: %d -> %d msgs (%d chars)", len(messages), len(trimmed), total)
+        return trimmed
 
     def _trim_short_term(self):
         non_system = [m for m in self._short_term if m.get("role") != "system"]

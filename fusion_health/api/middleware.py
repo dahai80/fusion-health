@@ -23,6 +23,11 @@ def _normalize_path(path: str) -> str:
     norm = path
     while "//" in norm:
         norm = norm.replace("//", "/")
+    try:
+        from urllib.parse import unquote
+        norm = unquote(norm)
+    except Exception:
+        pass
     return norm
 
 
