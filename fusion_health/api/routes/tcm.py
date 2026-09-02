@@ -48,7 +48,7 @@ async def analyze_stream(request: Request, body: TCMAnalyzeRequest):
             f"{body.symptoms[:4000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/syndrome")

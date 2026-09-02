@@ -50,7 +50,7 @@ async def audit_documentation_stream(request: Request, body: AuditRequest):
             f"{body.clinical_note[:8000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/regulatory")
@@ -73,4 +73,4 @@ async def check_regulatory_stream(request: Request, body: RegulatoryRequest):
             f"{body.content[:8000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)

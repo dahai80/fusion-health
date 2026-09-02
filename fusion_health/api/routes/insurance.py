@@ -58,7 +58,7 @@ async def suggest_icd10_stream(request: Request, body: ICD10Request):
             f"{body.diagnosis_text[:4000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/cpt")
@@ -79,7 +79,7 @@ async def suggest_cpt_stream(request: Request, body: CPTRequest):
             f"{body.procedure_text[:4000]}"
         )}],
     )
-    return sse_response(tokens)
+    return sse_response(tokens, request, gateway)
 
 
 @router.post("/claim-audit")
