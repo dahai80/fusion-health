@@ -10,6 +10,7 @@ class VerificationStatus(str, Enum):
     verified = "verified"
     ai_suggested = "ai_suggested"
     unverified = "unverified"
+    invalid = "invalid"
 
 
 class LLMResult(BaseModel):

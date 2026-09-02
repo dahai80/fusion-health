@@ -19,12 +19,12 @@ class CPTValidator:
     def validate(self, code: str) -> dict[str, Any]:
         cleaned = (code or "").strip().upper()
         if not cleaned:
-            return {"valid": False, "description": "", "status": VerificationStatus.unverified}
+            return {"valid": False, "description": "", "status": VerificationStatus.invalid}
         if not CPT_CODE_RE.match(cleaned):
             logger.warning("CPT code format invalid: %s", code)
-            return {"valid": False, "description": "", "status": VerificationStatus.unverified}
+            return {"valid": False, "description": "", "status": VerificationStatus.invalid}
         return {
-            "valid": True,
+            "valid": False,
             "description": "",
-            "status": VerificationStatus.ai_suggested,
+            "status": VerificationStatus.unverified,
         }
