@@ -38,28 +38,33 @@ def _symptom_matched(text: str, symptom: str) -> bool:
 
 
 class TCMAssistant:
+    _DATA_CACHE: dict[str, dict] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
         self._gateway = LLMGateway(self.config)
-        self._syndromes: list[dict] = []
-        self._formulas: list[dict] = []
-        self._contraindications: dict[str, list[dict]] = {}
-        self._loaded = False
+        cache = self._DATA_CACHE.setdefault(str(DATA_DIR), {})
+        self._syndromes: list[dict] = cache.setdefault("syndromes", [])
+        self._formulas: list[dict] = cache.setdefault("formulas", [])
+        self._contraindications: dict[str, list[dict]] = cache.setdefault("contraindications", {})
+        self._cache = cache
 
     def _load(self):
-        if self._loaded:
+        if self._cache.get("loaded"):
             return
         try:
             with open(DATA_DIR / "syndromes.yaml", encoding="utf-8") as f:
-                self._syndromes = (yaml.safe_load(f) or {}).get("syndromes", [])
+                self._syndromes[:] = (yaml.safe_load(f) or {}).get("syndromes", [])
             with open(DATA_DIR / "formulas.yaml", encoding="utf-8") as f:
-                self._formulas = (yaml.safe_load(f) or {}).get("formulas", [])
+                self._formulas[:] = (yaml.safe_load(f) or {}).get("formulas", [])
             with open(DATA_DIR / "contraindications.yaml", encoding="utf-8") as f:
-                self._contraindications = yaml.safe_load(f) or {}
+                loaded = yaml.safe_load(f) or {}
+                self._contraindications.clear()
+                self._contraindications.update(loaded)
             logger.info("Loaded %d syndromes, %d formulas", len(self._syndromes), len(self._formulas))
         except Exception as e:
             logger.error("Failed to load TCM data: %s", e)
-        self._loaded = True
+        self._cache["loaded"] = True
 
     def identify_syndrome(self, symptoms: str) -> list[dict[str, Any]]:
         self._load()

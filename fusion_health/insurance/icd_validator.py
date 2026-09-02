@@ -11,18 +11,18 @@ logger = logging.getLogger(__name__)
 
 
 class ICDValidator:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._icd10_db: dict[str, dict] = {}
-        self._loaded = False
+        self._icd10_db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._icd10_db:
             return
         db_path = self.config.data_dir / "icd10_cn" / "icd10_cn.tsv"
         if not db_path.exists():
             logger.warning("ICD-10-CN database not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -34,7 +34,6 @@ class ICDValidator:
             logger.info("Loaded %d ICD-10-CN codes from %s", len(self._icd10_db), db_path)
         except Exception as e:
             logger.error("Failed to load ICD-10-CN database: %s", e)
-        self._loaded = True
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()

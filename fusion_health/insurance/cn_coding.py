@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 
 
 class ICD9CM3Validator:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "icd9cm3_cn" / "icd9cm3_cn.tsv"
         if not db_path.exists():
             logger.warning("ICD-9-CM-3 CN database not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -36,7 +36,6 @@ class ICD9CM3Validator:
             logger.info("Loaded %d ICD-9-CM-3 CN codes", len(self._db))
         except Exception as e:
             logger.error("Failed to load ICD-9-CM-3 CN: %s", e)
-        self._loaded = True
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
@@ -64,18 +63,18 @@ class ICD9CM3Validator:
 
 
 class DRGHelper:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "drg" / "drg_cn.tsv"
         if not db_path.exists():
             logger.warning("DRG database not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -87,7 +86,6 @@ class DRGHelper:
             logger.info("Loaded %d DRG groups", len(self._db))
         except Exception as e:
             logger.error("Failed to load DRG database: %s", e)
-        self._loaded = True
 
     def suggest(self, diagnosis_or_procedure: str, limit: int = 5) -> list[dict]:
         self._load()
@@ -110,18 +108,18 @@ class DRGHelper:
 
 
 class InsuranceCatalogMatcher:
+    _DB_CACHE: dict[str, dict[str, dict]] = {}
+
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
-        self._db: dict[str, dict] = {}
-        self._loaded = False
+        self._db = self._DB_CACHE.setdefault(str(self.config.data_dir), {})
 
     def _load(self):
-        if self._loaded:
+        if self._db:
             return
         db_path = self.config.data_dir / "insurance_catalog.tsv"
         if not db_path.exists():
             logger.warning("Insurance catalog not found at %s", db_path)
-            self._loaded = True
             return
         try:
             with open(db_path, encoding="utf-8") as f:
@@ -133,7 +131,6 @@ class InsuranceCatalogMatcher:
             logger.info("Loaded %d insurance catalog entries", len(self._db))
         except Exception as e:
             logger.error("Failed to load insurance catalog: %s", e)
-        self._loaded = True
 
     def match(self, icd_code: str) -> dict[str, Any]:
         self._load()

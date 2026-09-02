@@ -27,13 +27,18 @@ def _owner(request: Request) -> str:
     return getattr(request.state, "owner_id", DEFAULT_OWNER)
 
 
-def _evict_if_over(owner: str):
+async def _evict_if_over(owner: str):
     owner_sessions = {k: v for k, v in _session_times.items() if k[0] == owner}
     while len(owner_sessions) > MAX_SESSIONS:
         oldest_key = min(owner_sessions, key=owner_sessions.get)
-        _sessions.pop(oldest_key, None)
+        evicted = _sessions.pop(oldest_key, None)
         _session_times.pop(oldest_key, None)
         del owner_sessions[oldest_key]
+        if evicted is not None:
+            try:
+                await evicted.close()
+            except Exception as e:
+                logger.warning("Error closing evicted session %s: %s", oldest_key[1], e)
         logger.info("Evicted oldest chat session: %s/%s", oldest_key[0], oldest_key[1])
 
 
@@ -67,7 +72,7 @@ async def start_session(request: Request, body: ChatStartRequest) -> dict[str, A
     key = (owner, sid)
     _sessions[key] = session
     _session_times[key] = time.time()
-    _evict_if_over(owner)
+    await _evict_if_over(owner)
     return {"session_id": sid, "status": "started"}
 
 
