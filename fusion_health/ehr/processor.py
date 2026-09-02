@@ -5,7 +5,7 @@ from typing import Any
 
 from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
-from ..schemas.ehr import ClinicalSummary, VitalsResult
+from ..schemas.ehr import ClinicalSummary, SOURCE_AI_GENERATED, VitalsResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,12 @@ class EHRProcessor:
             response_schema=ClinicalSummary,
         )
         if result.parsed:
-            return result.parsed.model_dump()
+            logger.warning("EHR summary is AI-generated and UNVERIFIED — not a clinical diagnosis")
+            return {**result.parsed.model_dump(), "source": SOURCE_AI_GENERATED}
         if result.error:
             logger.error("generate_summary error: %s", result.error)
             return {"error": result.error, "raw": result.raw}
-        return {"summary": result.content}
+        return {"summary": result.content, "source": SOURCE_AI_GENERATED}
 
     async def generate_discharge_summary(self, admission_notes: str, progress_notes: str,
                                            discharge_meds: str) -> str:
@@ -64,8 +65,8 @@ class EHRProcessor:
             response_schema=VitalsResult,
         )
         if result.parsed:
-            return result.parsed.model_dump()
+            return {**result.parsed.model_dump(), "source": SOURCE_AI_GENERATED}
         if result.error:
             logger.error("extract_vitals error: %s", result.error)
             return {"error": result.error, "raw": result.raw}
-        return {"vitals": result.content}
+        return {"vitals": result.content, "source": SOURCE_AI_GENERATED}
