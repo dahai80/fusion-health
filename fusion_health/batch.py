@@ -14,14 +14,6 @@ from .tcm.assistant import TCMAssistant
 
 logger = logging.getLogger(__name__)
 
-ACTION_MAP = {
-    "ehr_summary": "generate_summary",
-    "ehr_vitals": "extract_vitals",
-    "code_icd10": "suggest_icd_codes",
-    "compliance_audit": "audit_documentation",
-    "tcm_analyze": "analyze",
-}
-
 
 class BatchProcessor:
     def __init__(self, config: HealthConfig | None = None, max_concurrent: int = 3):
@@ -30,7 +22,14 @@ class BatchProcessor:
 
     async def process_directory(
         self, directory: Path, action: str, pattern: str = "*.txt", output_dir: Path | None = None,
+        root: Path | None = None,
     ) -> dict[str, Any]:
+        directory = directory.resolve()
+        if root is not None:
+            root = root.resolve()
+            if root not in directory.parents and directory != root:
+                logger.warning("Directory %s outside root %s — rejected", directory, root)
+                return {"total": 0, "success": 0, "errors": 0, "results": [], "error": "directory_outside_root"}
         files = sorted(directory.glob(pattern))
         if not files:
             logger.warning("No files matching '%s' in %s", pattern, directory)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from ..config import HealthConfig
@@ -10,6 +11,9 @@ from .pubmed_client import PubMedClient
 from .semantic_scholar import SemanticScholarClient
 
 logger = logging.getLogger(__name__)
+
+_CACHE_TTL = 600
+_result_cache: dict[tuple[str, int], tuple[float, list[dict[str, Any]]]] = {}
 
 
 class LiteratureRetriever:
@@ -24,11 +28,21 @@ class LiteratureRetriever:
         self._s2 = SemanticScholarClient(timeout=config.timeout)
 
     async def search(self, query: str, max_results: int = 5) -> list[dict[str, Any]]:
+        cache_key = (query.strip().lower(), max_results)
+        now = time.monotonic()
+        cached = _result_cache.get(cache_key)
+        if cached and (now - cached[0]) < _CACHE_TTL:
+            logger.info("Literature cache hit: query=%r max_results=%d", query, max_results)
+            return cached[1]
         real_results = await self._fetch_real_sources(query, max_results)
         if real_results:
+            _result_cache[cache_key] = (now, real_results)
             return real_results
         logger.info("No real literature sources available, falling back to LLM")
-        return await self._search_via_llm(query, max_results)
+        llm_results = await self._search_via_llm(query, max_results)
+        if llm_results:
+            _result_cache[cache_key] = (now, llm_results)
+        return llm_results
 
     async def _fetch_real_sources(self, query: str, max_results: int) -> list[dict[str, Any]]:
         import asyncio

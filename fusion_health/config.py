@@ -67,10 +67,15 @@ class HealthConfig:
         for env_key, (attr, cast) in env_map.items():
             val = os.getenv(env_key)
             if val is not None:
-                setattr(cfg, attr, cast(val))
+                try:
+                    setattr(cfg, attr, cast(val))
+                except (ValueError, TypeError) as e:
+                    logger.warning("Invalid env %s=%r (expected %s): %s — keeping default", env_key, val, cast.__name__, e)
 
         if os.getenv("FUSION_HEALTH_PUBMED_ENABLED", "1") == "0":
             cfg.pubmed_enabled = False
+        if os.getenv("FUSION_HEALTH_S2_ENABLED", "1") == "0":
+            cfg.semantic_scholar_enabled = False
         if os.getenv("FUSION_HEALTH_OFFLINE", "0") == "1":
             cfg.offline = True
 
@@ -85,10 +90,18 @@ class HealthConfig:
                     if isinstance(getattr(cfg, k), bool):
                         setattr(cfg, k, _parse_bool(v))
                     else:
-                        setattr(cfg, k, type(getattr(cfg, k))(v))
+                        try:
+                            setattr(cfg, k, type(getattr(cfg, k))(v))
+                        except (ValueError, TypeError) as e:
+                            logger.warning("Invalid config.yaml %s=%r: %s — keeping default", k, v, e)
                 logger.info("Loaded config overrides from %s", yaml_path)
             except Exception as e:
                 logger.warning("Failed to load config.yaml: %s", e)
+
+        if cfg.offline:
+            cfg.pubmed_enabled = False
+            cfg.semantic_scholar_enabled = False
+            logger.info("Offline mode active — PubMed and SemanticScholar disabled")
 
         if not cfg.mlx_api_key:
             settings_path = Path.home() / ".fusion-mlx" / "settings.json"

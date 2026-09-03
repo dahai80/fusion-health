@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from ...audit import log_access
 from ...literature.retriever import LiteratureRetriever
-from ...llm_gateway import LLMGateway
+from ..gateway_provider import get_gateway
 from ..sse import sse_response
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def summarize_evidence(request: Request, body: EvidenceRequest) -> dict[st
 @router.post("/evidence/stream")
 async def summarize_evidence_stream(request: Request, body: EvidenceRequest):
     config = request.app.state.config
-    gateway = LLMGateway(config)
+    gateway = get_gateway(config)
     lit_text = "\n".join(
         f"- {item.get('title', '?')}: {item.get('summary', '')[:200]}"
         for item in body.literature[:10]

@@ -9,7 +9,8 @@ from fusion_health.api.app import create_app
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    monkeypatch.setenv("FUSION_HEALTH_RATE_LIMIT_RPM", "0")
     cfg = HealthConfig()
     cfg.pubmed_enabled = False
     cfg.semantic_scholar_enabled = False
@@ -349,7 +350,7 @@ class TestAPIKeyMiddleware:
 
 
 class TestSSEStreamEndpoints:
-    @patch("fusion_health.api.routes.ehr.LLMGateway")
+    @patch("fusion_health.api.routes.ehr.get_gateway")
     def test_ehr_summary_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             for t in ["Hello", " world"]:
@@ -362,7 +363,7 @@ class TestSSEStreamEndpoints:
         assert "text/event-stream" in resp.headers.get("content-type", "")
         _assert_sse_event_format(resp.text)
 
-    @patch("fusion_health.api.routes.ehr.LLMGateway")
+    @patch("fusion_health.api.routes.ehr.get_gateway")
     def test_discharge_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "Discharge"
@@ -376,7 +377,7 @@ class TestSSEStreamEndpoints:
         assert "text/event-stream" in resp.headers.get("content-type", "")
         _assert_sse_event_format(resp.text)
 
-    @patch("fusion_health.api.routes.insurance.LLMGateway")
+    @patch("fusion_health.api.routes.insurance.get_gateway")
     def test_icd10_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             for t in ["A01", ": Typhoid"]:
@@ -389,7 +390,7 @@ class TestSSEStreamEndpoints:
         assert "text/event-stream" in resp.headers.get("content-type", "")
         _assert_sse_event_format(resp.text)
 
-    @patch("fusion_health.api.routes.insurance.LLMGateway")
+    @patch("fusion_health.api.routes.insurance.get_gateway")
     def test_cpt_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "99213"
@@ -400,7 +401,7 @@ class TestSSEStreamEndpoints:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers.get("content-type", "")
 
-    @patch("fusion_health.api.routes.literature.LLMGateway")
+    @patch("fusion_health.api.routes.literature.get_gateway")
     def test_evidence_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "Evidence summary"
@@ -411,7 +412,7 @@ class TestSSEStreamEndpoints:
         assert resp.status_code == 200
         _assert_sse_event_format(resp.text)
 
-    @patch("fusion_health.api.routes.compliance.LLMGateway")
+    @patch("fusion_health.api.routes.compliance.get_gateway")
     def test_audit_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "Compliant"
@@ -422,7 +423,7 @@ class TestSSEStreamEndpoints:
         assert resp.status_code == 200
         _assert_sse_event_format(resp.text)
 
-    @patch("fusion_health.api.routes.compliance.LLMGateway")
+    @patch("fusion_health.api.routes.compliance.get_gateway")
     def test_regulatory_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "Regulatory check"
@@ -435,7 +436,7 @@ class TestSSEStreamEndpoints:
         assert resp.status_code == 200
         assert "text/event-stream" in resp.headers.get("content-type", "")
 
-    @patch("fusion_health.api.routes.tcm.LLMGateway")
+    @patch("fusion_health.api.routes.tcm.get_gateway")
     def test_tcm_analyze_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "肝郁气滞"
@@ -451,7 +452,7 @@ class TestSSEStreamEndpoints:
         })
         assert resp.status_code == 404
 
-    @patch("fusion_health.api.routes.chat.LLMGateway")
+    @patch("fusion_health.api.routes.chat.get_gateway")
     def test_chat_message_stream(self, MockGateway, client):
         async def fake_stream(*args, **kwargs):
             yield "Medical"

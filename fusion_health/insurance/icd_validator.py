@@ -10,7 +10,20 @@ from ..schemas.base import VerificationStatus
 
 logger = logging.getLogger(__name__)
 
-ICD10_FORMAT_RE = re.compile(r"^[A-Z]\d{2}(\.[A-Z0-9]{1,4})?$")
+ICD10_FORMAT_RE = re.compile(r"^[A-Z]\d{2}(\.[A-Z0-9]{1,7})?$")
+
+DEFAULT_DATA_SOURCE = "sample"
+
+
+def _data_source(data_dir) -> str:
+    marker = data_dir / ".data_source"
+    try:
+        if marker.exists():
+            val = marker.read_text(encoding="utf-8").strip().lower()
+            return val or DEFAULT_DATA_SOURCE
+    except OSError:
+        pass
+    return DEFAULT_DATA_SOURCE
 
 
 class ICDValidator:
@@ -48,6 +61,7 @@ class ICDValidator:
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
+        src = _data_source(self.config.data_dir)
         entry = self._icd10_db["codes"].get(code)
         if entry:
             return {
@@ -55,11 +69,12 @@ class ICDValidator:
                 "description": entry.get("description", ""),
                 "category": entry.get("category", ""),
                 "status": VerificationStatus.verified,
+                "data_source": src,
             }
         if ICD10_FORMAT_RE.match(code):
-            return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified}
+            return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified, "data_source": src}
         logger.warning("ICD-10 code invalid format: %s", code)
-        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.invalid}
+        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.invalid, "data_source": src}
 
     def search(self, keyword: str, limit: int = 10) -> list[dict]:
         self._load()
