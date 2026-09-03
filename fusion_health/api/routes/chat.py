@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 
 from ...audit import log_access
 from ...conversation import ConversationSession
-from ...llm_gateway import LLMGateway
+from ..gateway_provider import get_gateway
 from ..sse import sse_response
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ _session_times: dict[tuple[str, str], float] = {}
 _reaper_task: asyncio.Task | None = None
 
 DEFAULT_OWNER = "anonymous"
+SESSION_ID_RE = __import__("re").compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 async def _reaper():
@@ -37,10 +38,20 @@ async def _reaper():
             _session_times.pop(key, None)
             if session is not None:
                 try:
+                    session.save()
+                except Exception as e:
+                    logger.warning("Error saving stale session %s: %s", key[1], e)
+                try:
                     await session.close()
                 except Exception as e:
                     logger.warning("Error closing stale session %s: %s", key[1], e)
             logger.info("Reaped stale chat session: %s/%s", key[0], key[1])
+
+
+def start_reaper() -> None:
+    global _reaper_task
+    if _reaper_task is None or _reaper_task.done():
+        _reaper_task = asyncio.create_task(_reaper())
 
 
 async def close_all_sessions():
@@ -48,6 +59,10 @@ async def close_all_sessions():
         session = _sessions.pop(key, None)
         _session_times.pop(key, None)
         if session is not None:
+            try:
+                session.save()
+            except Exception as e:
+                logger.warning("Error saving session %s on shutdown: %s", key[1], e)
             try:
                 await session.close()
             except Exception as e:
@@ -75,17 +90,17 @@ async def _evict_if_over(owner: str):
 
 
 class ChatStartRequest(BaseModel):
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{1,64}$")
     system_prompt: str | None = None
 
 
 class ChatMessageRequest(BaseModel):
-    session_id: str = Field(..., min_length=1)
+    session_id: str = Field(..., pattern=r"^[a-zA-Z0-9_-]{1,64}$")
     message: str = Field(..., min_length=1, max_length=5000)
 
 
 class ChatSaveRequest(BaseModel):
-    session_id: str = Field(..., min_length=1)
+    session_id: str = Field(..., pattern=r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 def _not_found(session_id: str) -> JSONResponse:
@@ -97,9 +112,6 @@ def _not_found(session_id: str) -> JSONResponse:
 
 @router.post("/start")
 async def start_session(request: Request, body: ChatStartRequest) -> dict[str, Any]:
-    global _reaper_task
-    if _reaper_task is None or _reaper_task.done():
-        _reaper_task = asyncio.create_task(_reaper())
     owner = _owner(request)
     config = request.app.state.config
     session = ConversationSession(config)
@@ -139,7 +151,7 @@ async def send_message_stream(request: Request, body: ChatMessageRequest):
     _session_times[key] = time.time()
     session.memory.add_user_message(body.message)
     config = request.app.state.config
-    gateway = LLMGateway(config)
+    gateway = get_gateway(config)
     tokens = gateway.chat_stream(messages=session.memory.get_messages())
 
     async def _on_done(full_content: str):

@@ -24,7 +24,8 @@ class CPTValidator:
             logger.warning("CPT code format invalid: %s", code)
             return {"valid": False, "description": "", "status": VerificationStatus.invalid}
         return {
-            "valid": False,
+            "valid": True,
             "description": "",
-            "status": VerificationStatus.unverified,
+            "status": VerificationStatus.ai_suggested,
+            "note": "format-valid, no CPT database loaded for full verification",
         }

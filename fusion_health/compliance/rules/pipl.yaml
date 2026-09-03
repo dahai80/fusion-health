@@ -14,7 +14,7 @@ rules:
   - id: "PIPL-003"
     description: "检测银行卡号泄露"
     type: "regex"
-    pattern: "\\d{16,19}"
+    pattern: "\\b(?:62\\d{14,17}|4\\d{15,18}|5[1-5]\\d{14,17})\\b"
     severity: "high"
   - id: "PIPL-004"
     description: "检测电子邮件泄露"

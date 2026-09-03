@@ -39,6 +39,16 @@ def main():
     p.add_argument("--input", required=True, help="Input text or file")
     p.add_argument("--output", default="")
 
+    p = sub.add_parser("cn-code", help="China-specific medical coding (DRG/catalog/ICD-9-CM-3)")
+    p.add_argument("action", choices=["drg", "catalog", "icd9cm3"])
+    p.add_argument("--input", required=True, help="Input text or file")
+    p.add_argument("--output", default="")
+
+    p = sub.add_parser("tcm", help="TCM syndrome analysis and formula recommendation")
+    p.add_argument("action", choices=["analyze", "syndrome", "formula"])
+    p.add_argument("--input", required=True, help="Input text or file")
+    p.add_argument("--output", default="")
+
     p = sub.add_parser("literature", help="Clinical literature search")
     p.add_argument("query", help="Search query")
     p.add_argument("--max-results", type=int, default=5)
@@ -71,10 +81,19 @@ def main():
 
     sub.add_parser("version", help="Show version")
 
+    p = sub.add_parser("eval", help="Clinical coding golden-set evaluation")
+    p.add_argument("--report", default="", help="Write JSON report to file")
+
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    if args.command != "version":
+        logging.getLogger("fusion_health").info(
+            "Fusion-Health: 输出仅供参考，不构成诊断/治疗建议。最终决策须由具备资质的医师作出。"
+            "本软件尚未取得医疗器械注册证书，不得用于商业销售。"
+        )
 
     from fusion_health.config import HealthConfig
     config = HealthConfig.from_env()
@@ -103,10 +122,16 @@ def main():
         asyncio.run(_cmd_ehr(args, config))
     elif args.command == "code":
         asyncio.run(_cmd_code(args, config))
+    elif args.command == "cn-code":
+        _cmd_cn_code(args, config)
+    elif args.command == "tcm":
+        asyncio.run(_cmd_tcm(args, config))
     elif args.command == "literature":
         asyncio.run(_cmd_literature(args, config))
     elif args.command == "compliance":
         asyncio.run(_cmd_compliance(args, config))
+    elif args.command == "eval":
+        asyncio.run(_cmd_eval(args, config))
 
 
 async def _cmd_ehr(args, config):
@@ -169,6 +194,26 @@ async def _cmd_compliance(args, config):
         print(output)
 
 
+async def _cmd_eval(args, config):
+    from fusion_health.clinical_eval import evaluate, format_report
+    from fusion_health.insurance.coder import InsuranceCoder
+
+    coder = InsuranceCoder(config=config)
+    result = await evaluate(coder)
+    print(format_report(result))
+    if args.report:
+        import json as _json
+        report = {
+            "total": result.total,
+            "with_any_code": result.with_any_code,
+            "precision": result.precision,
+            "recall": result.recall,
+            "f1": result.f1,
+            "per_case": result.per_case,
+        }
+        _safe_output(args.report, _json.dumps(report, indent=2, ensure_ascii=False))
+
+
 async def _cmd_chat(args, config):
     from fusion_health.conversation import ConversationSession
     session = ConversationSession(config)
@@ -217,6 +262,44 @@ async def _cmd_batch(args, config):
         output_dir=output_dir,
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+def _cmd_cn_code(args, config):
+    from fusion_health.insurance.cn_coding import DRGHelper, InsuranceCatalogMatcher, ICD9CM3Validator
+    text = _safe_input(args.input) if Path(args.input).exists() else args.input
+    if args.action == "drg":
+        helper = DRGHelper(config)
+        result = helper.suggest(text)
+    elif args.action == "catalog":
+        matcher = InsuranceCatalogMatcher(config)
+        codes = [c.strip() for c in text.split(",") if c.strip()]
+        result = matcher.batch_match(codes)
+    else:
+        validator = ICD9CM3Validator(config)
+        codes = [c.strip() for c in text.split(",") if c.strip()]
+        result = [validator.validate(c) for c in codes]
+    output = json.dumps(result, indent=2, ensure_ascii=False)
+    if args.output:
+        _safe_output(args.output, output)
+    else:
+        print(output)
+
+
+async def _cmd_tcm(args, config):
+    from fusion_health.tcm.assistant import TCMAssistant
+    text = _safe_input(args.input)
+    assistant = TCMAssistant(config)
+    if args.action == "analyze":
+        result = await assistant.analyze(text)
+    elif args.action == "syndrome":
+        result = assistant.identify_syndrome(text)
+    else:
+        result = assistant.recommend_formula(text)
+    output = json.dumps(result, indent=2, ensure_ascii=False) if isinstance(result, (dict, list)) else str(result)
+    if args.output:
+        _safe_output(args.output, output)
+    else:
+        print(output)
 
 
 def _cmd_template(args, config):

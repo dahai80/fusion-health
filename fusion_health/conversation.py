@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from pathlib import Path
@@ -77,19 +76,27 @@ class ConversationMemory:
         self._short_term = []
 
     def save(self, path: Path | None = None):
+        from . import crypto
         if path is None:
-            path = self.config.literature_cache_dir.parent / "conversations" / f"{self._session_id}.json"
+            base = self.config.literature_cache_dir.parent / "conversations"
+            safe = self._session_id.replace("/", "_").replace("..", "_")
+            path = base / f"{safe}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "session_id": self._session_id,
             "short_term": self._short_term,
             "long_term": self._long_term,
         }
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        logger.info("Conversation saved: %s", path)
+        import os
+        content = crypto.encrypt_json(data)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        logger.info("Conversation saved: %s (encrypted=%s)", path, crypto.encryption_enabled())
 
     def load(self, path: Path) -> str:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        from . import crypto
+        data = crypto.decrypt_bytes(path.read_bytes())
         if not isinstance(data, dict):
             raise ValueError(f"Invalid conversation file (not an object): {path}")
         session_id = data.get("session_id", "")
@@ -110,7 +117,7 @@ class ConversationMemory:
         valid: list[dict[str, str]] = []
         for i, m in enumerate(messages):
             if not isinstance(m, dict) or m.get("role") not in ("system", "user", "assistant"):
-                logger.warning("Skipping invalid message at %s[%d]: %r", field, i, m)
+                logger.warning("Skipping invalid message at %s[%d] (role=%r)", field, i, m.get("role") if isinstance(m, dict) else type(m).__name__)
                 continue
             valid.append({"role": m["role"], "content": str(m.get("content", ""))})
         return valid
@@ -148,7 +155,7 @@ class ConversationSession:
         if result.content:
             self._memory.add_assistant_message(result.content)
         else:
-            self._memory.add_assistant_message(f"[错误: {result.error}]")
+            logger.warning("chat returned no content, error=%s — not persisting to history", result.error)
         return result
 
     @property

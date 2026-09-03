@@ -121,7 +121,7 @@ class TestStreamHistoryConsistency:
             yield "Hello"
             yield " patient"
 
-        with patch("fusion_health.api.routes.chat.LLMGateway") as MockGW:
+        with patch("fusion_health.api.routes.chat.get_gateway") as MockGW:
             mock_gw = MagicMock()
             mock_gw.chat_stream = fake_stream
             mock_gw.close = AsyncMock()

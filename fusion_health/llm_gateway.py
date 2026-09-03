@@ -86,7 +86,7 @@ class LLMGateway:
             logger.error("LLM response missing key: %s", e)
             return LLMResult(content="", error=f"response_missing_key: {e}", model=model)
         except Exception as e:
-            logger.error("LLM error: %s", type(e).__name__, exc_info=True)
+            logger.error("LLM error: %s: %s", type(e).__name__, e, exc_info=logger.isEnabledFor(logging.DEBUG))
             return LLMResult(content="", error=str(e), model=model)
 
     async def chat_stream(

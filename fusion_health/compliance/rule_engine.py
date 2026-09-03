@@ -35,6 +35,7 @@ class RuleEngine:
 
     def load_rules(self):
         self._rules = []
+        self._rule_sets: list[dict] = []
         if not self.rules_dir.exists():
             logger.warning("Rules directory not found: %s", self.rules_dir)
             return
@@ -42,10 +43,14 @@ class RuleEngine:
             try:
                 with open(yaml_file, encoding="utf-8") as f:
                     rule_set = yaml.safe_load(f) or {}
+                name = rule_set.get("name", yaml_file.stem)
+                version = rule_set.get("version", "")
+                self._rule_sets.append({"file": yaml_file.name, "name": name, "version": version})
                 for rule in rule_set.get("rules", []):
                     rule["_source"] = yaml_file.name
+                    rule["_rule_set"] = name
                     self._rules.append(rule)
-                logger.debug("Loaded %d rules from %s", len(rule_set.get("rules", [])), yaml_file.name)
+                logger.debug("Loaded %d rules from %s (%s v%s)", len(rule_set.get("rules", [])), yaml_file.name, name, version)
             except Exception as e:
                 logger.error("Failed to load rules from %s: %s", yaml_file.name, e)
         logger.info("Loaded %d compliance rules from %s", len(self._rules), self.rules_dir)
@@ -91,6 +96,7 @@ class RuleEngine:
 
         return {
             "rule_id": rule_id,
+            "rule_set": rule.get("_rule_set", ""),
             "rule_description": rule.get("description", ""),
             "status": status,
             "detail": detail,

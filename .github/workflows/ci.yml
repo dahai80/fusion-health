@@ -8,7 +8,11 @@ on:
 
 jobs:
   lint-test:
-    runs-on: macos-14
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04]
     steps:
       - uses: actions/checkout@v4
 
@@ -29,5 +33,32 @@ jobs:
       - name: Ruff check
         run: ruff check .
 
-      - name: Pytest
-        run: pytest -q
+      - name: Pytest with coverage
+        run: pytest --cov=fusion_health --cov-report=term-missing -q
+
+      - name: Enforce coverage floor (80%)
+        run: |
+          python - <<'PY'
+          import re, subprocess, sys
+          out = subprocess.run(["coverage", "report"], capture_output=True, text=True)
+          print(out.stdout)
+          m = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", out.stdout)
+          if not m:
+              print("could not parse coverage total"); sys.exit(1)
+          pct = int(m.group(1))
+          if pct < 80:
+              print(f"coverage {pct}% below 80% floor"); sys.exit(1)
+          print(f"coverage {pct}% OK")
+          PY
+
+      - name: pip-audit (dependency vulnerabilities)
+        run: |
+          pip install pip-audit
+          # --strict removed: en_core_web_sm is a direct wheel (not PyPI), would false-fail.
+          # Real CVEs still exit non-zero.
+          pip-audit --desc on
+
+      - name: Bandit SAST scan
+        run: |
+          pip install bandit
+          bandit -r fusion_health -q

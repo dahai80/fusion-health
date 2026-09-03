@@ -8,6 +8,7 @@ from ..config import HealthConfig
 from ..llm_gateway import LLMGateway
 from ..schemas.base import VerificationStatus
 from ..schemas.insurance import ProcedureCodeResult, DRGResult
+from .icd_validator import _data_source
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class ICD9CM3Validator:
 
     def validate(self, code: str) -> dict[str, Any]:
         self._load()
+        src = _data_source(self.config.data_dir)
         entry = self._db["codes"].get(code)
         if entry:
             return {
@@ -53,8 +55,9 @@ class ICD9CM3Validator:
                 "description": entry.get("description", ""),
                 "category": entry.get("category", ""),
                 "status": VerificationStatus.verified,
+                "data_source": src,
             }
-        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified}
+        return {"valid": False, "description": "", "category": "", "status": VerificationStatus.unverified, "data_source": src}
 
     def search(self, keyword: str, limit: int = 10) -> list[dict]:
         self._load()
@@ -103,21 +106,23 @@ class DRGHelper:
 
     def suggest(self, diagnosis_or_procedure: str, limit: int = 5) -> list[dict]:
         self._load()
+        src = _data_source(self.config.data_dir)
         results = []
         keyword = diagnosis_or_procedure.lower()
         for drg_code, entry in self._db["codes"].items():
             name = entry.get("drg_name", "").lower()
             if keyword in name:
-                results.append({"drg_code": drg_code, **entry})
+                results.append({"drg_code": drg_code, **entry, "data_source": src})
                 if len(results) >= limit:
                     break
         return results
 
     def get(self, drg_code: str) -> dict[str, Any] | None:
         self._load()
+        src = _data_source(self.config.data_dir)
         entry = self._db["codes"].get(drg_code)
         if entry:
-            return {"drg_code": drg_code, **entry}
+            return {"drg_code": drg_code, **entry, "data_source": src}
         return None
 
 
@@ -155,6 +160,7 @@ class InsuranceCatalogMatcher:
 
     def match(self, icd_code: str) -> dict[str, Any]:
         self._load()
+        src = _data_source(self.config.data_dir)
         entry = self._db["codes"].get(icd_code)
         if entry:
             return {
@@ -163,8 +169,9 @@ class InsuranceCatalogMatcher:
                 "name": entry.get("name", ""),
                 "level": entry.get("level", "自费"),
                 "category": entry.get("category", ""),
+                "data_source": src,
             }
-        return {"matched": False, "code": icd_code, "level": "自费", "name": "", "category": ""}
+        return {"matched": False, "code": icd_code, "level": "自费", "name": "", "category": "", "data_source": src}
 
     def batch_match(self, icd_codes: list[str]) -> list[dict[str, Any]]:
         return [self.match(code) for code in icd_codes]

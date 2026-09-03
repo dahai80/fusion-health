@@ -297,6 +297,57 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.0rc1 — 产品级审计 P0–P3 整改（候选发布版本）
+
+第三次产品级审计（5 P0、12 P1、20 P2、约 12 P3）判定 fusion-health 不具备企业级商用发布条件。全部问题已修复：
+
+**P0（阻断级）：**
+- 结构化日志（JSON + 轮转文件处理器），API lifespan 注入 `configure_logging()`
+- 审计日志 HMAC-SHA256 逐行签名 + 序列计数 + `verify_log_line()` + `0o600` 权限
+- 配置 env/YAML 类型转换容错（坏值保留默认 + 告警）
+- 所有路由接入审计日志（每个端点 `log_access`）
+- CORS 收紧（来源走环境变量，方法/头部受限）
+- `/api/v1/metrics` 路由（请求/鉴权/限流计数器）
+- `start.sh` 强制 API key 告警 + 端口占用预检 + `doctor` 子命令
+
+**P1（严重级）：**
+- CPT 校验器对格式合法码返回 `ai_suggested`（原硬判 `invalid`）
+- ICD-10 子码正则 `{1,4}`→`{1,7}`（真实码被截断）
+- CLI 新增 `tcm` + `cn-code` 子命令（DRG/目录/ICD-9-CM-3 + 证型/方剂）
+- SSE 流式路由前置领域系统提示词（EHR/医保/合规/中医）
+- 限流器修复（`deque` + `popleft`，默认 60 rpm）
+- 会话清理器移入 lifespan（驱逐/关停前先落盘）
+- 健康 `/ready` 端点（数据文件状态 + 会话计数）
+- 文献检索结果缓存（10 分钟 TTL）
+- 共享池化 LLMGateway 单例（所有流式路由复用同一池化 httpx 客户端，生命周期纳入 API lifespan — 修复每请求新建 gateway 的对象抖动 + 连接生命周期）
+- 多 worker 限流告警（`FUSION_HEALTH_WORKERS` 环境变量；进程内限流器在 >1 worker 时记录有效 N×rpm）
+
+**P2（中级）：**
+- FHIR 映射器改用 `model_dump()`（移除无用 `import json`）
+- 银行卡正则收紧（按发卡行前缀识别）
+- 中药库加载加 mtime 失效（原为永久缓存）
+- ICD/DRG/目录/ICD-9-CM-3 响应 `data_source` 由 `.data_source` 标记文件读取（数据导入后自动从 `sample` 切到 `full`）
+- 批处理根目录限制 + 移除死代码 `ACTION_MAP`
+- CI：Linux 矩阵 + 覆盖率 80% 门槛 + pip-audit
+
+**非代码交付：**
+- `scripts/ingest_data.py` — 校验并安装权威编码数据集（ICD-10-CN / ICD-9-CM-3 / DRG / 医保目录），导入后写 `.data_source` 标记为 `full`，备份样本。详见 [DATA_SOURCES.md](DATA_SOURCES.md)。
+- `DATA_SOURCES.md` — 数据集状态、必需列、导入与回滚步骤、生产准入门槛。
+- `COMPLIANCE.md` — PHI 数据流、审计日志、留存策略、部署加固清单、运营方责任（PIPL / HIPAA 对齐）。
+- 多 worker 共享限流：`FUSION_HEALTH_RATE_LIMIT_DB`（SQLite 后端，`BEGIN IMMEDIATE` 原子计数插入；>1 worker 时内存回退并告警）。
+- 会话 PHI 静态加密（AES-256-GCM，`FUSION_HEALTH_PHI_KEY`：64 位十六进制原始密钥或口令→PBKDF2-HMAC-SHA256 20 万次迭代；未设置时明文回退，向后兼容）。见 `fusion_health/crypto.py`。
+- 企业生产就绪门禁（`fusion_health/enterprise.py`）：设 `FUSION_HEALTH_ENTERPRISE=1` 在 API 启动时强制检查 — 数据源为 `full`、API 密钥 / 审计 HMAC 密钥 / PHI 加密密钥 / CORS 来源均已设置；逐项记录失败。`FUSION_HEALTH_ENTERPRISE_HARD=1` 任一失败即拒绝启动（软模式=仅告警）。`/api/v1/health/ready` 返回 `enterprise_ready` + `enterprise_failures`。
+
+**企业商业发布加固：**
+- CI 安全扫描 — Bandit SAST（`bandit -r fusion_health`，须零告警）+ pip-audit 依赖 CVE 扫描，均强制（有发现即非零退出）。见 [SECURITY.md](SECURITY.md)。
+- `X-Fusion-Disclaimer` 响应头（每个 API 响应）+ CLI 启动日志：仅供参考、不构成诊断、未取得医疗器械注册证书。
+- 审计日志轮转 + 完整性校验（`audit.rotate_log`、`audit.verify_log_file` — 检测 HMAC 篡改 + 序列号断号）。
+- 灾备备份/恢复 — `scripts/backup.py create|verify`：审计日志 + 会话文件打包为带 sha256 清单的 tar.gz；**审计日志被篡改时中止备份**；`verify` 逐文件比对清单哈希（不自动恢复 — 运营方手动复制以防 PHI 风险）。
+- 负载/性能测试 — `scripts/load_test.py`（进程内 ASGI，无网络）+ `tests/test_load.py`（CI）：并发 10-20，测 p50/p95/p99 + 吞吐，SLO 门禁 p95 ≤ 2000ms（`FUSION_HEALTH_LOAD_SLO_MS`）。实测 316 req/s、p95=84ms。
+- 临床评估工具链 — `fusion_health/clinical_eval.py` 金标准评估（precision/recall/F1，3 位 ICD 类目匹配）+ `fusion-health eval` CLI。真机验证：5/5 命中、recall=1.00、F1=0.91。真机测试由 `FUSION_HEALTH_REAL_MODEL=1` 门控。
+- [REGULATORY.md](REGULATORY.md) — NMPA 医疗器械分类 + II 类注册路径 + 必要人工动作（顾问、QMS、临床医生验证金标准 ≥100 例）。
+- [LEGAL.md](LEGAL.md) — 使用条款模板、PIPL 对齐数据处理协议、个人信息保护影响评估模板、责任框架。使用前须经律师审核。
+
 ### v1.1.0 — 第二次独立架构审计修复
 
 第二次独立架构师审计发现 6 项 P0、9 项 P1、10 项 P2 及若干 P3 问题，覆盖架构边界、运行时风险、工程实现。P0 全清，P1 除延期 R9 外全清，P2 全清。

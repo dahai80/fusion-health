@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -14,7 +13,18 @@ from ..schemas.fhir import (
 logger = logging.getLogger(__name__)
 
 
+def _patient_ref(patient_id: str | None) -> str:
+    return f"Patient/{patient_id}" if patient_id else ""
+
+
 class FHIRMapper:
+    def __init__(self, patient_id: str | None = None):
+        self.patient_id = patient_id
+
+    def _subject(self) -> dict[str, str]:
+        ref = _patient_ref(self.patient_id)
+        return {"reference": ref} if ref else {}
+
     def map_vitals(self, vitals: dict[str, Any]) -> FHIRBundle:
         entries = []
         now = datetime.now(timezone.utc).isoformat()
@@ -40,7 +50,7 @@ class FHIRMapper:
                 valueString=str(value),
                 effectiveDateTime=now,
             )
-            entries.append({"resource": json.loads(obs.model_dump_json())})
+            entries.append({"resource": obs.model_dump()})
         return FHIRBundle(entry=entries)
 
     def map_diagnosis(self, diagnoses: list[dict[str, Any]]) -> FHIRBundle:
@@ -56,7 +66,7 @@ class FHIRMapper:
                 ),
                 clinicalStatus=FHIRCodeableConcept(text="active"),
             )
-            entries.append({"resource": json.loads(cond.model_dump_json())})
+            entries.append({"resource": cond.model_dump()})
         return FHIRBundle(entry=entries)
 
     def map_procedure(self, procedures: list[dict[str, Any]]) -> FHIRBundle:
@@ -71,7 +81,7 @@ class FHIRMapper:
                     system="http://hl7.org/fhir/sid/icd-9-cm",
                 ),
             )
-            entries.append({"resource": json.loads(p.model_dump_json())})
+            entries.append({"resource": p.model_dump()})
         return FHIRBundle(entry=entries)
 
     def map_medication(self, medications: list[dict[str, Any]]) -> FHIRBundle:
@@ -86,7 +96,7 @@ class FHIRMapper:
                 ),
                 authoredOn=datetime.now(timezone.utc).isoformat(),
             )
-            entries.append({"resource": json.loads(mr.model_dump_json())})
+            entries.append({"resource": mr.model_dump()})
         return FHIRBundle(entry=entries)
 
     def map_clinical_summary(self, summary: dict[str, Any]) -> FHIRBundle:

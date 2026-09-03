@@ -297,6 +297,57 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.0rc1 — Product-Readiness Audit P0–P3 Remediation (Release Candidate)
+
+A third product-readiness audit (5 P0, 12 P1, 20 P2, ~12 P3) found fusion-health not publishable for enterprise use. All findings fixed:
+
+**P0 (blocking):**
+- Structured logging (JSON + rotating file handler) via `configure_logging()` in API lifespan
+- HMAC-SHA256 per-line audit log signing + sequence counter + `verify_log_line()` + `0o600` perms
+- Config env/YAML cast error tolerance (keep default + warn on bad input)
+- API audit logging on all routes (`log_access` on every endpoint)
+- CORS locked down (origins from env, methods/headers restricted)
+- `/api/v1/metrics` route (request/auth/rate-limit counters)
+- `start.sh` API-key enforcement warning + port-in-use pre-check + `doctor` subcommand
+
+**P1 (severe):**
+- CPT validator returns `ai_suggested` for format-valid codes (was hard `invalid`)
+- ICD-10 subcode regex `{1,4}`→`{1,7}` (real codes truncated)
+- CLI `tcm` + `cn-code` subcommands (DRG/catalog/ICD-9-CM-3 + syndrome/formula)
+- SSE stream routes prepend domain system prompts (EHR/insurance/compliance/TCM)
+- Rate limiter fixed (`deque` + `popleft`, default 60 rpm)
+- Session reaper extracted to lifespan (saves before close on eviction/shutdown)
+- Health `/ready` endpoint (data-file status + session count)
+- Literature search result cache (10-min TTL)
+- Shared pooled LLMGateway singleton (all stream routes reuse one pooled httpx client; lifecycle in API lifespan — fixes per-request gateway churn + connection lifecycle)
+- Multi-worker rate-limit warning (`FUSION_HEALTH_WORKERS` env; per-process limiter logs effective N×rpm when >1 worker)
+
+**P2 (medium):**
+- FHIR mapper uses `model_dump()` (removed dead `import json`)
+- Bank card regex tightened (issuer-prefix aware)
+- TCM herb load mtime invalidation (was permanent cache)
+- ICD/DRG/catalog/ICD-9-CM-3 responses marked `data_source` from `.data_source` marker file (flips `sample`→`full` on ingestion)
+- Batch processor root-confinement + dead `ACTION_MAP` removed
+- CI: Linux matrix + coverage 80% floor + pip-audit
+
+**Non-code delivery:**
+- `scripts/ingest_data.py` — validates + installs authoritative coding datasets (ICD-10-CN / ICD-9-CM-3 / DRG / insurance catalog), flips `.data_source` marker to `full`, backs up samples. See [DATA_SOURCES.md](DATA_SOURCES.md).
+- `DATA_SOURCES.md` — dataset status, required columns, ingestion + rollback steps, production gate.
+- `COMPLIANCE.md` — PHI data flow, audit logging, retention, deployment hardening checklist, operator responsibilities (PIPL / HIPAA-aligned).
+- Multi-worker shared rate limiting via `FUSION_HEALTH_RATE_LIMIT_DB` (SQLite backend, atomic `BEGIN IMMEDIATE` count-and-insert; in-memory fallback warns when >1 worker).
+- AES-256-GCM at-rest encryption for conversation PHI (`FUSION_HEALTH_PHI_KEY`: 64-hex raw key or passphrase→PBKDF2-HMAC-SHA256 200k iters; plaintext fallback when unset, backward-compatible). See `fusion_health/crypto.py`.
+- Enterprise production-readiness gate (`fusion_health/enterprise.py`): set `FUSION_HEALTH_ENTERPRISE=1` to enforce at API startup — checks data source is `full`, API key / audit HMAC key / PHI encryption key / CORS origins all set; logs per-check failures. `FUSION_HEALTH_ENTERPRISE_HARD=1` refuses startup on any failure (soft mode = warn only). `/api/v1/health/ready` reports `enterprise_ready` + `enterprise_failures`.
+
+**Enterprise commercial-release hardening:**
+- Security scanning in CI — Bandit SAST (`bandit -r fusion_health`, must be clean) + pip-audit dependency CVE scan, both enforced (non-zero exit on findings). See [SECURITY.md](SECURITY.md).
+- `X-Fusion-Disclaimer` response header on every API response + CLI startup log: advisory-only, not a diagnosis, not NMPA-registered.
+- Audit log rotation + integrity verification (`audit.rotate_log`, `audit.verify_log_file` — detects HMAC tamper + sequence gaps).
+- DR backup/restore — `scripts/backup.py create|verify`: backs up audit log + conversation sessions into a sha256-manifested tar.gz; **aborts backup if audit log is tampered**; `verify` checks every file's hash against the manifest (no auto-restore — operator copies manually for PHI safety).
+- Load/performance test — `scripts/load_test.py` (in-process ASGI, no network) + `tests/test_load.py` (CI): concurrency 10-20, measures p50/p95/p99 + throughput, SLO gate p95 ≤ 2000ms (`FUSION_HEALTH_LOAD_SLO_MS`). Measured: 316 req/s, p95=84ms.
+- Clinical evaluation toolkit — `fusion_health/clinical_eval.py` golden-set harness (precision/recall/F1, 3-char ICD category matching) + `fusion-health eval` CLI. Verified against live model: 5/5 cases hit, recall=1.00, F1=0.91. Real-model test gated by `FUSION_HEALTH_REAL_MODEL=1`.
+- [REGULATORY.md](REGULATORY.md) — NMPA medical-device classification + Class II registration path + required human actions (consultant, QMS, clinician-verified golden set ≥100 cases).
+- [LEGAL.md](LEGAL.md) — Terms-of-use template, PIPL-aligned DPA, PIPIA template, liability framework. Requires lawyer review before use.
+
 ### v1.1.0 — Second Independent Architecture Audit Fixes
 
 A second independent architect audit found 6 P0, 9 P1, 10 P2, and several P3 issues across architecture boundaries, runtime risk, and engineering implementation. All P0, P1 (except deferred R9), and P2 fixed.

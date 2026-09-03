@@ -58,14 +58,23 @@ class TCMAssistant:
     def __init__(self, config: HealthConfig | None = None):
         self.config = config or HealthConfig.from_env()
         self._gateway = LLMGateway(self.config)
-        cache = self._DATA_CACHE.setdefault(str(DATA_DIR), {})
-        self._syndromes: list[dict] = cache.setdefault("syndromes", [])
-        self._formulas: list[dict] = cache.setdefault("formulas", [])
-        self._contraindications: dict[str, list[dict]] = cache.setdefault("contraindications", {})
+        cache = self._DATA_CACHE.setdefault(str(DATA_DIR), {"syndromes": [], "formulas": [], "contraindications": {}, "mtime": -1.0})
+        self._syndromes: list[dict] = cache["syndromes"]
+        self._formulas: list[dict] = cache["formulas"]
+        self._contraindications: dict[str, list[dict]] = cache["contraindications"]
         self._cache = cache
 
     def _load(self):
-        if self._cache.get("loaded"):
+        import os
+        files = ["syndromes.yaml", "formulas.yaml", "contraindications.yaml"]
+        try:
+            mtime = max(
+                (os.path.getmtime(DATA_DIR / f) if (DATA_DIR / f).exists() else -1.0)
+                for f in files
+            )
+        except OSError:
+            mtime = -1.0
+        if self._cache.get("mtime") == mtime and self._cache.get("loaded"):
             return
         try:
             with open(DATA_DIR / "syndromes.yaml", encoding="utf-8") as f:
@@ -79,6 +88,7 @@ class TCMAssistant:
             logger.info("Loaded %d syndromes, %d formulas", len(self._syndromes), len(self._formulas))
         except Exception as e:
             logger.error("Failed to load TCM data: %s", e)
+        self._cache["mtime"] = mtime
         self._cache["loaded"] = True
 
     def identify_syndrome(self, symptoms: str) -> list[dict[str, Any]]:
@@ -170,8 +180,8 @@ class TCMAssistant:
             herbs = result.parsed.herbs
             contraindications = self.check_contraindications(herbs) if herbs else []
             logger.warning(
-                "TCM analyze used LLM-generated herbs — UNVERIFIED, not from formula DB: %s",
-                herbs,
+                "TCM analyze used LLM-generated herbs — UNVERIFIED, not from formula DB (count=%d)",
+                len(herbs) if herbs else 0,
             )
             return {
                 "source": SOURCE_AI_UNVERIFIED,
