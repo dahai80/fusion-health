@@ -297,6 +297,16 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.1 — 默认端点改为 mlx 直连（issue #23）
+
+补丁修复 #21 的后续问题：默认配置开箱仍 401，因为端点指向 fusion-gateway（11432），而自动加载的 `~/.fusion-mlx/settings.json` 密钥是 **mlx** 密钥，被 gateway 拒绝。
+
+- **默认端点改为 mlx 直连**：`mlx_url` 默认值从 `http://127.0.0.1:11432/v1`（gateway）改为 `http://127.0.0.1:11434/v1`（fusion-mlx 直连）。自动加载的 mlx 密钥现在对默认端点有效——零环境变量开箱即用 LLM 连通。
+- **无需路由头**：mlx 0.8.80 不要求 `X-Fusion-Route`；默认配置无需 `FUSION_HEALTH_MLX_ROUTE` 即可工作。（gateway 仍可通过环境变量覆盖。）
+- #21 的模型简写解析（`Qwen3.5-9B-4bit` → `mlx-community--Qwen3.5-9B-4bit`）配合正确的默认端点，构成完全可用的默认链路。
+
+已用纯默认配置（无环境变量）验证 E2E：`/api/v1/health` → `ok`，`/api/v1/chat/message` → 真实 LLM 往返，无报错。
+
 ### v1.2.0 — 默认配置 LLM 连通性修复（issue #21）
 
 补丁版本，修复 #21 报告的开箱即用 LLM 网关连接问题：
