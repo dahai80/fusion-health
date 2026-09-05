@@ -364,7 +364,7 @@ class TestConfig:
     def test_default_config(self):
         cfg = HealthConfig()
         assert cfg.model == "Qwen3.5-9B-4bit"
-        assert "localhost:11432" in cfg.mlx_url
+        assert "127.0.0.1:11432" in cfg.mlx_url
 
     def test_from_env_override(self):
         with patch.dict("os.environ", {"FUSION_HEALTH_MODEL": "custom-model"}):

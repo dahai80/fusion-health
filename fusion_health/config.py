@@ -26,7 +26,7 @@ def _parse_bool(v) -> bool:
 
 @dataclass
 class HealthConfig:
-    mlx_url: str = "http://localhost:11432/v1"
+    mlx_url: str = "http://127.0.0.1:11432/v1"
     model: str = "Qwen3.5-9B-4bit"
     mlx_api_key: str = ""
     mlx_route: str = ""
