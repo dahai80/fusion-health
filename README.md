@@ -297,6 +297,16 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.1 — Default endpoint to mlx direct (issue #23)
+
+Patch fixing the follow-up to #21: the default config still 401'd out of the box because the endpoint pointed at fusion-gateway (11432) while the auto-loaded key from `~/.fusion-mlx/settings.json` is the **mlx** key, which the gateway rejects.
+
+- **Default endpoint → mlx direct**: `mlx_url` default changed from `http://127.0.0.1:11432/v1` (gateway) to `http://127.0.0.1:11434/v1` (fusion-mlx direct). The auto-loaded mlx key is now valid for the default endpoint — zero-env out-of-box LLM connectivity.
+- **No route header needed**: mlx 0.8.80 does not require `X-Fusion-Route`; the default works without `FUSION_HEALTH_MLX_ROUTE`. (Gateway override still supported via env.)
+- Model shorthand resolution from #21 (`Qwen3.5-9B-4bit` → `mlx-community--Qwen3.5-9B-4bit`) combines with the correct default endpoint for a fully working default path.
+
+Verified E2E with pure defaults (no env): `/api/v1/health` → `ok`, `/api/v1/chat/message` → real LLM round-trip, no error.
+
 ### v1.2.0 — Default-config LLM connectivity fix (issue #21)
 
 Patch release fixing the out-of-box LLM gateway connection problems reported in #21:
