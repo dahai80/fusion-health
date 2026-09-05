@@ -297,6 +297,16 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.0 — Default-config LLM connectivity fix (issue #21)
+
+Patch release fixing the out-of-box LLM gateway connection problems reported in #21:
+
+- **IPv4 default endpoint**: `mlx_url` default changed from `http://localhost:11432/v1` to `http://127.0.0.1:11432/v1` — avoids OrbStack/Docker IPv6 hijack of `localhost` that produced spurious connection failures.
+- **Model id resolution**: `LLMGateway._resolve_model()` queries `/models` on the first LLM call and fuzzy-matches a shorthand model id to the full backend id (e.g. `Qwen3.5-9B-4bit` → `mlx-community--Qwen3.5-9B-4bit`), so the default model no longer 404s against MLX backends that expose prefixed ids. Result is cached per gateway instance. Ambiguous or missing ids fall through with a clear warning rather than a silent failure.
+- **Clearer 401/404 errors**: `chat()` HTTP errors now include actionable hints — 401 explains gateway-vs-direct-mlx auth requirements; 404 explains the model is not loaded on the backend.
+
+Verified against live fusion-mlx 0.8.80: shorthand `Qwen3.5-9B-4bit` resolves to `mlx-community--Qwen3.5-9B-4bit` and completes a real chat round-trip.
+
 ### v1.2.0rc1 — Product-Readiness Audit P0–P3 Remediation (Release Candidate)
 
 A third product-readiness audit (5 P0, 12 P1, 20 P2, ~12 P3) found fusion-health not publishable for enterprise use. All findings fixed:

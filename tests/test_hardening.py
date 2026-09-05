@@ -221,6 +221,117 @@ class TestLLMGateway:
         assert gw._client is None
 
     @pytest.mark.asyncio
+    async def test_resolve_model_exact_match(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "mlx-community--Qwen3.5-9B-4bit"}, {"id": "Qwen3.8-27B-4bit"}]}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        resolved = await gw._resolve_model("Qwen3.8-27B-4bit")
+        assert resolved == "Qwen3.8-27B-4bit"
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_shorthand_alias(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "mlx-community--Qwen3.5-9B-4bit"}]}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        resolved = await gw._resolve_model("Qwen3.5-9B-4bit")
+        assert resolved == "mlx-community--Qwen3.5-9B-4bit"
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_not_found_keeps_requested(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": [{"id": "other-model"}]}
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        resolved = await gw._resolve_model("Qwen3.5-9B-4bit")
+        assert resolved == "Qwen3.5-9B-4bit"
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_cached(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        gw._resolved_model = "cached-model"
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock()
+        gw._get_client = AsyncMock(return_value=mock_client)
+        resolved = await gw._resolve_model("anything")
+        assert resolved == "cached-model"
+        mock_client.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_resolve_model_non_200_keeps_requested(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_resp.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        resolved = await gw._resolve_model("Qwen3.5-9B-4bit")
+        assert resolved == "Qwen3.5-9B-4bit"
+
+    @pytest.mark.asyncio
+    async def test_chat_401_error_includes_hint(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "err", request=MagicMock(), response=MagicMock(status_code=401),
+        )
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_models = MagicMock()
+        mock_models.status_code = 200
+        mock_models.json.return_value = {"data": [{"id": cfg.model}]}
+        mock_models.raise_for_status = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_models)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        with patch("fusion_health.llm_gateway.with_retry", new=_no_retry):
+            result = await gw.chat(messages=[{"role": "user", "content": "hi"}])
+        assert result.error.startswith("HTTP 401")
+        assert "401: auth failed" in result.error
+
+    @pytest.mark.asyncio
+    async def test_chat_404_error_includes_hint(self):
+        cfg = HealthConfig()
+        gw = LLMGateway(cfg)
+        import httpx
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "err", request=MagicMock(), response=MagicMock(status_code=404),
+        )
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_models = MagicMock()
+        mock_models.status_code = 200
+        mock_models.json.return_value = {"data": [{"id": cfg.model}]}
+        mock_models.raise_for_status = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_models)
+        gw._get_client = AsyncMock(return_value=mock_client)
+        with patch("fusion_health.llm_gateway.with_retry", new=_no_retry):
+            result = await gw.chat(messages=[{"role": "user", "content": "hi"}])
+        assert result.error.startswith("HTTP 404")
+        assert "model not loaded" in result.error
+
+    @pytest.mark.asyncio
     async def test_chat_stream_yields_tokens(self):
         cfg = HealthConfig()
         gw = LLMGateway(cfg)

@@ -297,6 +297,16 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.0 — 默认配置 LLM 连通性修复（issue #21）
+
+补丁版本，修复 #21 报告的开箱即用 LLM 网关连接问题：
+
+- **默认端点改为 IPv4**：`mlx_url` 默认值从 `http://localhost:11432/v1` 改为 `http://127.0.0.1:11432/v1`，规避 OrbStack/Docker 对 `localhost` 的 IPv6 劫持导致的连接失败。
+- **模型 id 解析**：`LLMGateway._resolve_model()` 在首次 LLM 调用时查询 `/models`，将简写模型 id 模糊匹配为后端完整 id（如 `Qwen3.5-9B-4bit` → `mlx-community--Qwen3.5-9B-4bit`），默认模型不再因 MLX 后端 id 带前缀而 404。结果按网关实例缓存。歧义或未找到时保留原 id 并给出明确告警，而非静默失败。
+- **更清晰的 401/404 报错**：`chat()` 的 HTTP 错误现含可操作提示——401 说明 gateway 与直连 mlx 的鉴权差异；404 说明模型未在后端加载。
+
+已对线上 fusion-mlx 0.8.80 验证：简写 `Qwen3.5-9B-4bit` 解析为 `mlx-community--Qwen3.5-9B-4bit` 并完成真实对话往返。
+
 ### v1.2.0rc1 — 产品级审计 P0–P3 整改（候选发布版本）
 
 第三次产品级审计（5 P0、12 P1、20 P2、约 12 P3）判定 fusion-health 不具备企业级商用发布条件。全部问题已修复：
