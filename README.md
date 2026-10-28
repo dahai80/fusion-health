@@ -297,6 +297,16 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.2 — Audit secret hardening + process title (issues #25, #26)
+
+Security and operability patch:
+
+- **Remove hardcoded default audit secret (#26, P0)**: `fusion_health/audit.py` no longer falls back to the guessable `fusion-health-audit-default` literal. Per `architecture/config-conventions.md` §3: `FUSION_PROFILE=prod` with no `FUSION_HEALTH_AUDIT_HMAC_KEY` / `FUSION_HEALTH_API_KEY` now raises `RuntimeError` with remediation guidance; dev profile allows an empty key but logs a prominent warning. `python scripts/check-env.py` no longer reports this repo in non-baseline secret errors.
+- **Process title (#25)**: the API process now shows as `fusion-health serve :11469` in `ps`/Activity Monitor (was bare `Python`), set via `setproctitle` in the FastAPI lifespan — works when start.sh launches the uvicorn binary directly. `setproctitle` added to dependencies with a try/except fallback.
+- **Audit seq continuity (found during E2E)**: the per-process audit sequence counter is now initialized from the last line of the existing log file, so restarts no longer create sequence gaps that made `verify_log_file()` report the whole history as tampered.
+
+Verified live: process title in `ps`, health endpoint OK, real LLM chat round-trip, audit log verified `tampered=0` across a server restart. 234 tests pass, ruff clean.
+
 ### v1.2.1 — Default endpoint to mlx direct (issue #23)
 
 Patch fixing the follow-up to #21: the default config still 401'd out of the box because the endpoint pointed at fusion-gateway (11432) while the auto-loaded key from `~/.fusion-mlx/settings.json` is the **mlx** key, which the gateway rejects.
