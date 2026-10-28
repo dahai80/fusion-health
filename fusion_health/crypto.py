@@ -19,7 +19,7 @@ def _derive_key(passphrase: str, salt: bytes) -> bytes:
     return hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, _PBKDF2_ITERS, dklen=_KEY_LEN)
 
 
-def _resolve_key():
+def _phi_key_material():
     raw = os.getenv("FUSION_HEALTH_PHI_KEY", "").strip()
     if not raw:
         return None
@@ -36,14 +36,14 @@ def encryption_enabled() -> bool:
 
 
 def _aes_key(salt: bytes) -> bytes:
-    kind, val = _resolve_key()
+    kind, val = _phi_key_material()
     if kind == "raw":
         return val
     return _derive_key(val, salt)
 
 
 def encrypt_json(data: dict) -> bytes:
-    resolved = _resolve_key()
+    resolved = _phi_key_material()
     if resolved is None:
         return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -75,7 +75,7 @@ def decrypt_bytes(raw: bytes) -> dict:
         raise ValueError(f"unsupported enc_version: {parsed.get('enc_version')}")
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-    if _resolve_key() is None:
+    if _phi_key_material() is None:
         raise ValueError("encrypted conversation file but FUSION_HEALTH_PHI_KEY not set")
     salt = base64.b64decode(parsed["salt"])
     nonce = base64.b64decode(parsed["nonce"])

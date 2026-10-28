@@ -297,6 +297,17 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.3 — Adopt fusion_core.config single-point resolution (issue #28)
+
+Config governance Phase 2.2 patch:
+
+- **Single-point resolution (#28)**: `HealthConfig.from_env()` now uses `fusion_core.config.client_key` / `resolve_api_key` / `service_port` instead of hand-rolled env parsing. Local resolver helpers removed; API-key resolution lives in fusion-core only (`grep -rn 'def _resolve.*key'` returns nothing).
+- **Canonical key var**: `FUSION_CLIENT_KEY` is now the canonical API-key env var (legacy `FUSION_MLX_API_KEY` / `MLX_API_KEY` still work via fusion-core's deprecation chain, with a warning). Zero-env behavior preserved: with no key env vars set, the key is still auto-read from `~/.fusion-mlx/settings.json`.
+- **Profile semantics**: `FUSION_PROFILE=prod` with no key raises `RuntimeError` (var name + how to obtain + doc path); dev profile returns empty + warn-once.
+- **Canonical port var**: `FUSION_HEALTH_PORT` is now read via `fusion_core.config.service_port("health")`, matching `start.sh`. `FUSION_HEALTH_API_PORT` still works but is deprecated and logs a warning.
+
+Verified: `python scripts/check-env.py` reports 0 findings for this repo; 243 tests pass, ruff clean; live health endpoint + real LLM round-trip OK.
+
 ### v1.2.2 — Audit secret hardening + process title (issues #25, #26)
 
 Security and operability patch:
