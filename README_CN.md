@@ -297,6 +297,16 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.2 — 审计密钥加固 + 进程标题（issues #25, #26）
+
+安全与可运维性补丁：
+
+- **移除硬编码默认审计密钥（#26，P0）**：`fusion_health/audit.py` 不再回落到可猜测的 `fusion-health-audit-default` 字面量。按 `architecture/config-conventions.md` §3：`FUSION_PROFILE=prod` 且未设置 `FUSION_HEALTH_AUDIT_HMAC_KEY` / `FUSION_HEALTH_API_KEY` 时直接抛 `RuntimeError` 并附修复指引；dev profile 允许空密钥但醒目警告。`python scripts/check-env.py` 不再对本仓报非基线 secret 错误。
+- **进程标题（#25）**：API 进程在 `ps`/活动监视器中显示为 `fusion-health serve :11469`（此前是裸 `Python`），在 FastAPI lifespan 内通过 `setproctitle` 设置——start.sh 直接拉起 uvicorn 二进制的路径同样生效。`setproctitle` 进入依赖，带 try/except 回退。
+- **审计序号连续性（E2E 中发现）**：审计序号计数器现从日志文件最后一行初始化，进程重启不再产生序号断裂导致 `verify_log_file()` 误报整段历史被篡改。
+
+实测验证：`ps` 显示进程标题、health 端点正常、真实 LLM 对话往返、跨服务重启审计日志校验 `tampered=0`。234 项测试通过，ruff 无告警。
+
 ### v1.2.1 — 默认端点改为 mlx 直连（issue #23）
 
 补丁修复 #21 的后续问题：默认配置开箱仍 401，因为端点指向 fusion-gateway（11432），而自动加载的 `~/.fusion-mlx/settings.json` 密钥是 **mlx** 密钥，被 gateway 拒绝。

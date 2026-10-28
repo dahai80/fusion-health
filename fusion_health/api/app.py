@@ -25,12 +25,22 @@ def _cors_origins() -> list[str]:
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 
+def _set_process_title(config: HealthConfig) -> None:
+    try:
+        import setproctitle
+        setproctitle.setproctitle(f"fusion-health serve :{config.api_port}")
+        logger.info("process title set: fusion-health serve :%s", config.api_port)
+    except Exception as e:
+        logger.debug("setproctitle unavailable, process title unchanged: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
     if not app.state.config:
         app.state.config = HealthConfig.from_env()
     config = app.state.config
+    _set_process_title(config)
     logger.info("Fusion-Health API started: model=%s", config.model)
     assert_enterprise_ready(config)
     chat.start_reaper()

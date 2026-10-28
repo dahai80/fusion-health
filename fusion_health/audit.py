@@ -13,12 +13,48 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _seq = 0
+_seq_inited = False
+_empty_key_warned = False
+
+
+def _init_seq(log_path: Path) -> None:
+    global _seq, _seq_inited
+    if _seq_inited:
+        return
+    _seq_inited = True
+    try:
+        if not log_path.exists():
+            return
+        with open(log_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - 16384))
+            tail = f.read().decode("utf-8", "replace")
+        lines = [ln for ln in tail.splitlines() if ln.strip() and "\t" in ln]
+        if lines:
+            body = lines[-1].rsplit("\t", 1)[0]
+            _seq = int(json.loads(body).get("seq", 0))
+            logger.debug("audit seq initialized from existing log: %d", _seq)
+    except Exception as e:
+        logger.warning("audit seq init failed, starting from 0: %s", e)
 
 
 def _audit_key() -> bytes:
-    raw = os.getenv("FUSION_HEALTH_AUDIT_HMAC_KEY", "")
+    global _empty_key_warned
+    raw = os.getenv("FUSION_HEALTH_AUDIT_HMAC_KEY", "") or os.getenv("FUSION_HEALTH_API_KEY", "")
     if not raw:
-        raw = os.getenv("FUSION_HEALTH_API_KEY", "") or "fusion-health-audit-default"
+        if os.getenv("FUSION_PROFILE", "dev") == "prod":
+            raise RuntimeError(
+                "FUSION_HEALTH_AUDIT_HMAC_KEY not set — generate one with `openssl rand -hex 32` "
+                "and export it (FUSION_HEALTH_API_KEY also accepted); "
+                "see architecture/config-conventions.md §3"
+            )
+        if not _empty_key_warned:
+            _empty_key_warned = True
+            logger.warning(
+                "FUSION_HEALTH_AUDIT_HMAC_KEY not set — audit HMAC running with an empty key "
+                "(dev only, not tamper-evident); see architecture/config-conventions.md §3"
+            )
     return hashlib.sha256(raw.encode("utf-8")).digest()
 
 
@@ -28,8 +64,8 @@ def _hash_phi(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def _hmac(line: str) -> str:
-    return hmac.new(_audit_key(), line.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+def _hmac(line: str, key: bytes | None = None) -> str:
+    return hmac.new(key if key is not None else _audit_key(), line.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
 
 def _log_path() -> Path:
@@ -49,10 +85,12 @@ def log_access(
     global _seq
     if os.getenv("FUSION_HEALTH_AUDIT_DISABLED", "0") == "1":
         return
+    key = _audit_key()
     try:
         log_path = _log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with _lock:
+            _init_seq(log_path)
             _seq += 1
             event = {
                 "seq": _seq,
@@ -67,7 +105,7 @@ def log_access(
                 "phi_input_len": len(phi_input),
             }
             body = json.dumps(event, ensure_ascii=False, sort_keys=True)
-            sig = _hmac(body)
+            sig = _hmac(body, key)
             line = f"{body}\t{sig}\n"
             fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
             try:
