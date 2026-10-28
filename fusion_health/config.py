@@ -7,7 +7,18 @@ from pathlib import Path
 
 import yaml
 
+from fusion_core.config import client_key, resolve_api_key, service_port
+
 logger = logging.getLogger(__name__)
+
+
+def _mlx_key() -> str:
+    if os.getenv("FUSION_CLIENT_KEY", ""):
+        return client_key()
+    key = resolve_api_key()
+    if key:
+        return key
+    return client_key()
 
 
 def _parse_bool(v) -> bool:
@@ -53,14 +64,11 @@ class HealthConfig:
         env_map = {
             "FUSION_HEALTH_MLX_URL": ("mlx_url", str),
             "FUSION_HEALTH_MODEL": ("model", str),
-            "FUSION_MLX_API_KEY": ("mlx_api_key", str),
-            "FUSION_HEALTH_MLX_API_KEY": ("mlx_api_key", str),
             "FUSION_HEALTH_MLX_ROUTE": ("mlx_route", str),
             "FUSION_HEALTH_TEMPERATURE": ("temperature", float),
             "FUSION_HEALTH_MAX_TOKENS": ("max_tokens", int),
             "FUSION_HEALTH_TIMEOUT": ("timeout", float),
             "FUSION_ARTIFACTS_URL": ("artifacts_url", str),
-            "FUSION_HEALTH_API_PORT": ("api_port", int),
             "FUSION_HEALTH_RATE_LIMIT_RPM": ("rate_limit_rpm", int),
             "FUSION_HEALTH_SESSION_TTL": ("session_ttl_seconds", int),
         }
@@ -71,6 +79,22 @@ class HealthConfig:
                     setattr(cfg, attr, cast(val))
                 except (ValueError, TypeError) as e:
                     logger.warning("Invalid env %s=%r (expected %s): %s — keeping default", env_key, val, cast.__name__, e)
+
+        legacy_port = os.getenv("FUSION_HEALTH_API_PORT", "")
+        if legacy_port:
+            try:
+                cfg.api_port = int(legacy_port)
+                logger.warning(
+                    "FUSION_HEALTH_API_PORT is deprecated, set FUSION_HEALTH_PORT instead (config-conventions §1)"
+                )
+            except ValueError as e:
+                logger.warning("Invalid FUSION_HEALTH_API_PORT=%r: %s — keeping default", legacy_port, e)
+        try:
+            cfg.api_port = service_port("health", default=cfg.api_port)
+        except ValueError as e:
+            logger.warning("Invalid port config — keeping default: %s", e)
+
+        cfg.mlx_api_key = _mlx_key()
 
         if os.getenv("FUSION_HEALTH_PUBMED_ENABLED", "1") == "0":
             cfg.pubmed_enabled = False
@@ -102,20 +126,6 @@ class HealthConfig:
             cfg.pubmed_enabled = False
             cfg.semantic_scholar_enabled = False
             logger.info("Offline mode active — PubMed and SemanticScholar disabled")
-
-        if not cfg.mlx_api_key:
-            settings_path = Path.home() / ".fusion-mlx" / "settings.json"
-            try:
-                if settings_path.exists():
-                    import json
-                    with open(settings_path, encoding="utf-8") as f:
-                        s = json.load(f) or {}
-                    key = s.get("auth", {}).get("api_key", "") if isinstance(s, dict) else ""
-                    if key:
-                        cfg.mlx_api_key = key
-                        logger.info("Loaded mlx_api_key from %s", settings_path)
-            except Exception as e:
-                logger.warning("Failed to read fusion-mlx settings.json: %s", e)
 
         logger.info(
             "HealthConfig: model=%s, mlx_url=%s, offline=%s",

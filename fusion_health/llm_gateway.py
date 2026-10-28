@@ -138,8 +138,8 @@ class LLMGateway:
             hint = ""
             if sc == 401:
                 hint = (
-                    " (401: auth failed — gateway needs FUSION_MLX_API_KEY env; "
-                    "direct-mlx needs FUSION_HEALTH_MLX_ROUTE=chat + key from ~/.fusion-mlx/settings.json)"
+                    " (401: auth failed — check FUSION_CLIENT_KEY / FUSION_HEALTH_MLX_URL; "
+                    "direct-mlx also accepts the key auto-loaded from ~/.fusion-mlx/settings.json)"
                 )
             elif sc == 404:
                 hint = " (404: model not loaded on backend — check /v1/models)"

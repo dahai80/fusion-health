@@ -102,8 +102,11 @@ class TestConfig:
             encoding="utf-8",
         )
         monkeypatch.setattr(Path, "home", lambda: fake_home)
+        monkeypatch.delenv("FUSION_CLIENT_KEY", raising=False)
         monkeypatch.delenv("FUSION_MLX_API_KEY", raising=False)
+        monkeypatch.delenv("MLX_API_KEY", raising=False)
         monkeypatch.delenv("FUSION_HEALTH_MLX_API_KEY", raising=False)
+        monkeypatch.delenv("FUSION_PROFILE", raising=False)
         cfg = HealthConfig.from_env()
         assert cfg.mlx_api_key == "key-from-settings"
 
@@ -612,3 +615,75 @@ class TestEnterpriseReadiness:
                 assert "X-Fusion-Disclaimer" in resp.headers, f"missing disclaimer on {path}"
                 assert "advisory-only" in resp.headers["X-Fusion-Disclaimer"]
                 assert "not NMPA-registered" in resp.headers["X-Fusion-Disclaimer"]
+
+
+# ---------- fusion_core.config adoption (issue #28) ----------
+
+class TestFusionCoreConfigAdoption:
+    def _clean_env(self, monkeypatch, tmp_path):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+        for var in (
+            "FUSION_CLIENT_KEY", "FUSION_MLX_API_KEY", "MLX_API_KEY",
+            "FUSION_HEALTH_MLX_API_KEY", "FUSION_PROFILE",
+            "FUSION_HEALTH_PORT", "FUSION_HEALTH_API_PORT",
+        ):
+            monkeypatch.delenv(var, raising=False)
+
+    def test_client_key_takes_priority(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_CLIENT_KEY", "canonical-key")
+        monkeypatch.setenv("FUSION_MLX_API_KEY", "legacy-key")
+        cfg = HealthConfig.from_env()
+        assert cfg.mlx_api_key == "canonical-key"
+
+    def test_legacy_env_var_still_works(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_MLX_API_KEY", "legacy-key")
+        cfg = HealthConfig.from_env()
+        assert cfg.mlx_api_key == "legacy-key"
+
+    def test_dev_missing_key_empty(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.delenv("FUSION_PROFILE", raising=False)
+        cfg = HealthConfig.from_env()
+        assert cfg.mlx_api_key == ""
+
+    def test_prod_missing_key_raises(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_PROFILE", "prod")
+        with pytest.raises(RuntimeError, match="FUSION_CLIENT_KEY not set"):
+            HealthConfig.from_env()
+
+    def test_port_canonical_env(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_HEALTH_PORT", "11500")
+        cfg = HealthConfig.from_env()
+        assert cfg.api_port == 11500
+
+    def test_port_legacy_env_warns(self, monkeypatch, tmp_path, caplog):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_HEALTH_API_PORT", "11501")
+        with caplog.at_level(logging.WARNING):
+            cfg = HealthConfig.from_env()
+        assert cfg.api_port == 11501
+        assert any("FUSION_HEALTH_API_PORT is deprecated" in r.message for r in caplog.records)
+
+    def test_port_canonical_overrides_legacy(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_HEALTH_API_PORT", "11501")
+        monkeypatch.setenv("FUSION_HEALTH_PORT", "11500")
+        cfg = HealthConfig.from_env()
+        assert cfg.api_port == 11500
+
+    def test_port_default_when_unset(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        cfg = HealthConfig.from_env()
+        assert cfg.api_port == 11469
+
+    def test_port_invalid_keeps_default(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_HEALTH_PORT", "not-a-port")
+        cfg = HealthConfig.from_env()
+        assert cfg.api_port == 11469

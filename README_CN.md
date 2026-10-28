@@ -297,6 +297,17 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.3 — 采用 fusion_core.config 单点配置解析（issue #28）
+
+配置治理 Phase 2.2 补丁：
+
+- **单点解析（#28）**：`HealthConfig.from_env()` 改用 `fusion_core.config.client_key` / `resolve_api_key` / `service_port`，删除本地手写解析函数；API key 解析只存在于 fusion-core（`grep -rn 'def _resolve.*key'` 无结果）。
+- **规范 key 变量**：`FUSION_CLIENT_KEY` 为规范 API key 环境变量（旧变量 `FUSION_MLX_API_KEY` / `MLX_API_KEY` 仍可用，走 fusion-core 弃用链并告警）。零环境变量行为保留：无任何 key 变量时仍自动读取 `~/.fusion-mlx/settings.json`。
+- **Profile 语义**：`FUSION_PROFILE=prod` 缺 key 抛 `RuntimeError`（含变量名 + 获取方式 + 文档路径）；dev profile 返回空值 + 一次性告警。
+- **规范端口变量**：通过 `fusion_core.config.service_port("health")` 读取 `FUSION_HEALTH_PORT`，与 start.sh 对齐；`FUSION_HEALTH_API_PORT` 仍可用但已弃用并告警。
+
+验证：`python scripts/check-env.py` 对本仓库 0 项报告；243 个测试通过，ruff 无告警；线上健康检查 + 真实 LLM 调用正常。
+
 ### v1.2.2 — 审计密钥加固 + 进程标题（issues #25, #26）
 
 安全与可运维性补丁：
