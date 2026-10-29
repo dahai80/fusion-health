@@ -58,6 +58,24 @@ check_api_key() {
     fi
 }
 
+check_port_registry() {
+    local service="fusion-health"
+    local registry="${FUSION_REGISTRY:-$HOME/fusion/architecture/port-registry.yaml}"
+    if [ ! -f "$registry" ]; then
+        log_warn "port-registry.yaml not found at $registry — registry self-check skipped"
+        return 0
+    fi
+    if grep -A3 "^  ${service}:" "$registry" 2>/dev/null | grep -q "port: $PORT$"; then
+        return 0
+    fi
+    if [ "${FUSION_SKIP_REGISTRY_CHECK:-}" != "1" ]; then
+        log_error "port $PORT for ${service} not registered in $registry — refusing to start"
+        return 1
+    fi
+    log_warn "registry check bypassed (FUSION_SKIP_REGISTRY_CHECK=1)"
+    return 0
+}
+
 do_start() {
     if is_running; then
         log_info "fusion-health already running (pid $(cat "$PID_FILE"))"
@@ -68,6 +86,7 @@ do_start() {
         log_error "port ${PORT} already in use — refusing to start (set FUSION_HEALTH_PORT to change)"
         return 1
     fi
+    check_port_registry
     check_api_key
     log_info "starting fusion-health API on ${HOST}:${PORT} ..."
     FUSION_HEALTH_PORT="$PORT" nohup uvicorn fusion_health.api.app:app \
@@ -154,12 +173,14 @@ do_doctor() {
     return "$ok"
 }
 
-ACTION="${1:-start}"
-case "$ACTION" in
-    start)  do_start ;;
-    stop)   do_stop ;;
-    status) do_status ;;
-    doctor) do_doctor ;;
-    restart) do_stop || true; do_start ;;
-    *) echo "usage: $0 {start|stop|status|restart|doctor}" >&2; exit 1 ;;
-esac
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    ACTION="${1:-start}"
+    case "$ACTION" in
+        start)  do_start ;;
+        stop)   do_stop ;;
+        status) do_status ;;
+        doctor) do_doctor ;;
+        restart) do_stop || true; do_start ;;
+        *) echo "usage: $0 {start|stop|status|restart|doctor}" >&2; exit 1 ;;
+    esac
+fi

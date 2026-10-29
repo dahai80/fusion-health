@@ -297,6 +297,14 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.4 — start.sh 端口注册自检（issue #30）
+
+配置治理 Phase 3.3 补丁：
+
+- **先注册后启动自检（#30）**：`start.sh` 在端口占用检查之后、服务启动之前，校验自身在 `port-registry.yaml` 的注册项（`fusion-health`，端口 11469）。未注册端口启动即失败，不再等 CI check-ports 兜底。
+- 语义：未注册拒绝启动；`FUSION_SKIP_REGISTRY_CHECK=1` 跳过（告警）；注册文件缺失（路径可用 `FUSION_REGISTRY` 覆盖）告警后继续，支持独立部署。
+- 新增 `tests/test_start_sh.py` 6 个测试（已注册 / 端口未注册 / 服务缺失 / 跳过 / 文件缺失 / 实启动拒绝）。249 个测试通过，ruff 无告警；线上 E2E 验证：未注册端口拒绝启动，已注册端口正常启动。
+
 ### v1.2.3 — 采用 fusion_core.config 单点配置解析（issue #28）
 
 配置治理 Phase 2.2 补丁：

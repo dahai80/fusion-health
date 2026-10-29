@@ -297,6 +297,14 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.4 — start.sh port-registry self-check (issue #30)
+
+Config governance Phase 3.3 patch:
+
+- **Register-then-start self-check (#30)**: `start.sh` now verifies its own `port-registry.yaml` entry (`fusion-health`, port 11469) after the port-in-use check and before serving. An unregistered port fails at start instead of being caught later by CI `check-ports`.
+- Semantics: refuse on unregistered port; `FUSION_SKIP_REGISTRY_CHECK=1` bypasses (warns); missing registry file (`FUSION_REGISTRY` overrides the path) warns and continues for standalone deploys.
+- 6 new tests in `tests/test_start_sh.py` (registered / unregistered / service-missing / bypass / missing-registry / live start refusal). 249 tests pass, ruff clean; live E2E verified: unregistered port refused, registered port starts.
+
 ### v1.2.3 — Adopt fusion_core.config single-point resolution (issue #28)
 
 Config governance Phase 2.2 patch:
