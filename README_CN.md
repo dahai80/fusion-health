@@ -297,6 +297,14 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.5 — 修复 FUSION_CLIENT_KEY 优先级导致的 direct-mlx 鉴权回归（issue #32）
+
+v1.2.3 回归修复：
+
+- **`_mlx_key()` 不再在 `FUSION_CLIENT_KEY` 上短路（#32）**：默认 `mlx_url` 是直连 mlx（`http://127.0.0.1:11434/v1`），fusion-supervisor 注入的网关 client key 被直接发给 mlx → 后端调用全部 401 → `/api/v1/health` 持续 `degraded`/503。解析顺序改为：`resolve_api_key()`（env `FUSION_MLX_API_KEY`，再 `~/.fusion-mlx/settings.json` `auth.api_key`）→ `client_key()` 兜底（legacy 链 + prod 快速失败）。对直连 mlx 唯一有效的 settings.json key 不再可能被遮蔽。
+- 网关部署仍按文档路径：`FUSION_HEALTH_MLX_URL=http://127.0.0.1:11432/v1` + 网关 key 放 `FUSION_MLX_API_KEY`。
+- 测试更新：settings.json key 优先于 `FUSION_CLIENT_KEY`（回归用例）、`FUSION_CLIENT_KEY` 仍作为最后兜底；prod RuntimeError 与 dev 空值语义不变。250 个测试通过，ruff 无告警；线上 E2E 在注入 `FUSION_CLIENT_KEY` 的环境（模拟 supervisor）验证 — 健康 `ok`、真实 LLM 调用正常。
+
 ### v1.2.4 — start.sh 端口注册自检（issue #30）
 
 配置治理 Phase 3.3 补丁：

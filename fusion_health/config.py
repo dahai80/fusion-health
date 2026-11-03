@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def _mlx_key() -> str:
-    if os.getenv("FUSION_CLIENT_KEY", ""):
-        return client_key()
     key = resolve_api_key()
     if key:
         return key

@@ -297,6 +297,14 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.5 — Fix direct-mlx auth regression from FUSION_CLIENT_KEY priority (issue #32)
+
+Regression fix for v1.2.3:
+
+- **`_mlx_key()` no longer short-circuits on `FUSION_CLIENT_KEY` (#32)**: since the default `mlx_url` is direct-mlx (`http://127.0.0.1:11434/v1`), the gateway client key injected by fusion-supervisor was being sent to mlx itself → 401 on every backend call → `/api/v1/health` stuck at `degraded`/503. Resolution order is now: `resolve_api_key()` (env `FUSION_MLX_API_KEY`, then `~/.fusion-mlx/settings.json` `auth.api_key`) → `client_key()` as final fallback (legacy chain + prod fail-fast). The settings.json key — the only one valid for direct mlx — can no longer be shadowed.
+- Gateway deployments keep working per documented path: `FUSION_HEALTH_MLX_URL=http://127.0.0.1:11432/v1` + gateway key in `FUSION_MLX_API_KEY`.
+- Tests updated: settings.json key preferred over `FUSION_CLIENT_KEY` (regression), `FUSION_CLIENT_KEY` still works as last fallback; prod RuntimeError and dev-empty semantics unchanged. 250 tests pass, ruff clean; live E2E verified with `FUSION_CLIENT_KEY` injected in env (simulating supervisor) — health `ok`, real LLM round-trip OK.
+
 ### v1.2.4 — start.sh port-registry self-check (issue #30)
 
 Config governance Phase 3.3 patch:
