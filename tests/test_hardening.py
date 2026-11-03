@@ -631,12 +631,23 @@ class TestFusionCoreConfigAdoption:
         ):
             monkeypatch.delenv(var, raising=False)
 
-    def test_client_key_takes_priority(self, monkeypatch, tmp_path):
+    def test_settings_key_preferred_over_client_key(self, monkeypatch, tmp_path):
         self._clean_env(monkeypatch, tmp_path)
-        monkeypatch.setenv("FUSION_CLIENT_KEY", "canonical-key")
-        monkeypatch.setenv("FUSION_MLX_API_KEY", "legacy-key")
+        mlxdir = tmp_path / "home" / ".fusion-mlx"
+        mlxdir.mkdir()
+        (mlxdir / "settings.json").write_text(
+            json.dumps({"auth": {"api_key": "key-from-settings"}}),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("FUSION_CLIENT_KEY", "gateway-client-key")
         cfg = HealthConfig.from_env()
-        assert cfg.mlx_api_key == "canonical-key"
+        assert cfg.mlx_api_key == "key-from-settings"
+
+    def test_client_key_used_as_last_fallback(self, monkeypatch, tmp_path):
+        self._clean_env(monkeypatch, tmp_path)
+        monkeypatch.setenv("FUSION_CLIENT_KEY", "gateway-client-key")
+        cfg = HealthConfig.from_env()
+        assert cfg.mlx_api_key == "gateway-client-key"
 
     def test_legacy_env_var_still_works(self, monkeypatch, tmp_path):
         self._clean_env(monkeypatch, tmp_path)
