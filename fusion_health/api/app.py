@@ -4,15 +4,18 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from importlib.metadata import version as pkg_version
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from ..config import HealthConfig
 from ..enterprise import assert_enterprise_ready
 from ..logging_config import configure_logging
 from .middleware import APIKeyMiddleware
-from .routes import chat, compliance, ehr, health, insurance, literature, metrics, tcm
+from .routes import audit, chat, compliance, ehr, health, insurance, literature, metrics, tcm
 from .gateway_provider import close_gateway
 
 logger = logging.getLogger(__name__)
@@ -90,6 +93,14 @@ def create_app(config: HealthConfig | None = None) -> FastAPI:
     app.include_router(compliance.router, prefix="/api/v1/compliance", tags=["compliance"])
     app.include_router(tcm.router, prefix="/api/v1/tcm", tags=["tcm"])
     app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+    app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
+
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/ui/assets", StaticFiles(directory=static_dir), name="ui-assets")
+
+    @app.get("/ui", include_in_schema=False)
+    async def ui_index():
+        return FileResponse(static_dir / "index.html")
 
     return app
 

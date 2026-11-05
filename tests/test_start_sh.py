@@ -75,3 +75,17 @@ class TestPortRegistryCheck:
         r = subprocess.run(["bash", str(START_SH), "start"], env=env, capture_output=True, text=True)
         assert r.returncode != 0
         assert "refusing to start" in (r.stdout + r.stderr)
+
+
+class TestEnvFile:
+    def test_env_file_sourced(self, tmp_path):
+        env_file = tmp_path / "env"
+        env_file.write_text("FUSION_HEALTH_TEST_MARKER=from-env-file\n", encoding="utf-8")
+        script = f'''
+            source "{START_SH}"
+            echo "MARKER=${{FUSION_HEALTH_TEST_MARKER}}"
+        '''
+        r = subprocess.run(["bash", "-c", script],
+                           env={**os.environ, "FUSION_HEALTH_ENV_FILE": str(env_file)},
+                           capture_output=True, text=True)
+        assert "from-env-file" in r.stdout + r.stderr

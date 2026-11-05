@@ -297,6 +297,16 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.6 — Web 控制台（issue #34）
+
+补齐 web 能力缺口（P2 审计发现）：API 面现在可通过浏览器访问 `http://127.0.0.1:11469/ui` — 无外部宿主、无构建步骤。
+
+- **静态 Web 控制台**（`fusion_health/api/static/`）：CDN 引入 Tailwind + lucide 图标，支持暗黑模式，vanilla JS 客户端（`app.js`）直连现有 `/api/v1` 路由。四个页签：**Overview**（健康/指标）、**EHR & Insurance**（同一份病历文本上跑摘要 / ICD-10 / DRG）、**Audit chain**（链校验 + 最近事件表）、**Chat**（基于 `/chat` 路由的会话面板）。
+- **新增 API 路由**：`GET /api/v1/audit/verify`（HMAC 链校验：verified/tampered/intact）与 `GET /api/v1/audit/recent?limit=N`（已解析、PHI 已哈希的审计事件）。挂载于 `create_app`；`/ui` 页面本身不鉴权（数据端点仍走既有 API-key 中间件）。
+- 设置了 `FUSION_HEALTH_API_KEY` 时，把 key 粘贴进页头输入框 — 客户端存 localStorage 并在每次请求带 `X-API-Key`。
+- 新增 6 个测试（`tests/test_web_ui.py`）：UI 首页/资源、`/ui` 不进 OpenAPI、签名日志的 audit verify/recent。并将 `test_from_env_override` 与机器级 `~/.fusion-health/config.yaml` 隔离。255 个测试通过，ruff 无告警；线上 E2E：`/ui` 可访问、生产审计日志链校验通过、真实 LLM 会话往返正常。
+- **审计链运维修复（新 verify 路由发现）**：生产审计日志存在"混合密钥时期"（此前某次启动用未持久化的 `FUSION_HEALTH_API_KEY` 签名），历史行无法用当前密钥校验。`start.sh` 现在会 source `~/.fusion-health/env`（`set -a`，路径可用 `FUSION_HEALTH_ENV_FILE` 覆盖），使 `FUSION_HEALTH_AUDIT_HMAC_KEY` 跨重启持久；不可校验的旧日志已归档（`audit.log.mixed-key-era-archived`、`audit.log.no-export-era-archived`），新链验证 `tampered=0`。
+
 ### v1.2.5 — 修复 FUSION_CLIENT_KEY 优先级导致的 direct-mlx 鉴权回归（issue #32）
 
 v1.2.3 回归修复：

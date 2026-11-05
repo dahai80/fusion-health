@@ -9,6 +9,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Optional persistent env (secrets like FUSION_HEALTH_AUDIT_HMAC_KEY / API key).
+ENV_FILE="${FUSION_HEALTH_ENV_FILE:-$HOME/.fusion-health/env}"
+if [ -f "$ENV_FILE" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
 PID_FILE="${SCRIPT_DIR}/.fusion-health.pid"
 LOG_DIR="${SCRIPT_DIR}/logs"
 STDOUT_LOG="${LOG_DIR}/stdout.log"

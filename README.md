@@ -297,6 +297,16 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.6 — Web console UI (issue #34)
+
+Closes the web-surface gap (P2 audit finding): the API surface is now reachable from a browser at `http://127.0.0.1:11469/ui` — no external host, no build step.
+
+- **Static web console** (`fusion_health/api/static/`): Tailwind + lucide icons via CDN, dark mode, vanilla JS client (`app.js`) over existing `/api/v1` routes. Four tabs: **Overview** (health/metrics), **EHR & Insurance** (summary / ICD-10 / DRG on shared notes), **Audit chain** (verify + recent events table), **Chat** (session panel over `/chat` routes).
+- **New API routes**: `GET /api/v1/audit/verify` (HMAC-chain verification: verified/tampered/intact) and `GET /api/v1/audit/recent?limit=N` (parsed, PHI-hashed audit events). Mounted in `create_app`; `/ui` itself is served unauthenticated (data endpoints keep the existing API-key middleware).
+- When `FUSION_HEALTH_API_KEY` is set, paste the key into the header field — the client stores it in `localStorage` and sends `X-API-Key` on every call.
+- 6 new tests (`tests/test_web_ui.py`): UI index/assets served, `/ui` hidden from OpenAPI, audit verify/recent with a signed log. Also isolated `test_from_env_override` from machine-level `~/.fusion-health/config.yaml`. 255 tests pass, ruff clean; live E2E: `/ui` served, audit chain verified on the production log, real LLM chat round-trip OK.
+- **Audit chain ops fix (found by the new verify route)**: the production audit log contained a mixed-key era (lines signed with an unpersisted `FUSION_HEALTH_API_KEY` from a previous launch), so verification reported `tampered` for history it could not key. `start.sh` now sources `~/.fusion-health/env` (`set -a`, path overridable via `FUSION_HEALTH_ENV_FILE`) so `FUSION_HEALTH_AUDIT_HMAC_KEY` persists across restarts; the unverifiable mixed-key logs were archived (`audit.log.mixed-key-era-archived`, `audit.log.no-export-era-archived`) and a fresh chain verified `tampered=0`.
+
 ### v1.2.5 — Fix direct-mlx auth regression from FUSION_CLIENT_KEY priority (issue #32)
 
 Regression fix for v1.2.3:
