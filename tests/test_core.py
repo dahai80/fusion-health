@@ -366,7 +366,8 @@ class TestConfig:
         assert cfg.model == "Qwen3.5-9B-4bit"
         assert "127.0.0.1:11434" in cfg.mlx_url
 
-    def test_from_env_override(self):
+    def test_from_env_override(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
         with patch.dict("os.environ", {"FUSION_HEALTH_MODEL": "custom-model"}):
             cfg = HealthConfig.from_env()
             assert cfg.model == "custom-model"
