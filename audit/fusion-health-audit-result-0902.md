@@ -9,7 +9,7 @@ audience: engineer
 status: draft
 version: 1.2.6
 updated: 2026-11-07
-owner: @dahai
+owner: "@dahai"
 source_of_truth:
   - audit/fusion-health-audit-result-0902.md
 ---
