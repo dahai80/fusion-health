@@ -39,8 +39,30 @@ is_running() {
     kill -0 "$pid" 2>/dev/null
 }
 
+resolve_venv() {
+    # Resolution order: FUSION_HEALTH_VENV > monorepo venv > repo-local .venv.
+    # Returns 1 when no venv exists — caller decides the fallback (system python).
+    if [[ -n "${FUSION_HEALTH_VENV:-}" ]]; then
+        echo "${FUSION_HEALTH_VENV}"
+        return 0
+    fi
+    if [[ -f "/Users/dahai/fusion/.venv/bin/activate" ]]; then
+        echo "/Users/dahai/fusion/.venv"
+        return 0
+    fi
+    if [[ -f "${SCRIPT_DIR}/.venv/bin/activate" ]]; then
+        echo "${SCRIPT_DIR}/.venv"
+        return 0
+    fi
+    return 1
+}
+
 ensure_venv() {
-    local venv="${FUSION_HEALTH_VENV:-/Users/dahai/fusion/.venv}"
+    local venv
+    if ! venv="$(resolve_venv)"; then
+        log_warn "no venv found (set FUSION_HEALTH_VENV) — using system python"
+        return 0
+    fi
     if [[ -f "${venv}/bin/activate" ]]; then
         # shellcheck disable=SC1091
         source "${venv}/bin/activate"
@@ -172,12 +194,16 @@ do_doctor() {
     else
         log_info "API key: set"
     fi
-    local venv="${FUSION_HEALTH_VENV:-/Users/dahai/fusion/.venv}"
-    if [[ -f "${venv}/bin/activate" ]]; then
-        log_info "venv: ${venv} (ok)"
+    local venv
+    if venv="$(resolve_venv)"; then
+        if [[ -f "${venv}/bin/activate" ]]; then
+            log_info "venv: ${venv} (ok)"
+        else
+            log_error "venv: ${venv} not found"
+            ok=1
+        fi
     else
-        log_error "venv: ${venv} not found"
-        ok=1
+        log_warn "venv: none found — system python in use (set FUSION_HEALTH_VENV)"
     fi
     return "$ok"
 }
