@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/readme
+product: fusion-health
+class: app
+entry: service
+doc_type: readme
+title: { zh: "Fusion-Health 中文说明", en: "Fusion-Health (Chinese)" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - README_CN.md
+---
+
 <div align="center">
 
 # Fusion-Health

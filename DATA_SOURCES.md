@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "数据来源说明", en: "Data Sources" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - DATA_SOURCES.md
+---
+
 # Data Sources
 
 Fusion-Health bundles **sample** medical coding datasets so the API and CLI run

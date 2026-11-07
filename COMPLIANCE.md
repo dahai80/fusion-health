@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "合规说明", en: "Compliance" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - COMPLIANCE.md
+---
+
 # PHI & Compliance Guide
 
 Fusion-Health processes Protected Health Information (PHI): clinical notes,

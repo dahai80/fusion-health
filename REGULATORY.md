@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "监管说明", en: "Regulatory" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - REGULATORY.md
+---
+
 # Regulatory Path — Fusion-Health
 
 **STATUS: DRAFT — not filed. Requires NMPA consultant + legal review before any commercial use.**
