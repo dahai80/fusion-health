@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "法律声明", en: "Legal" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - LEGAL.md
+---
+
 # Legal Framework — Fusion-Health
 
 **STATUS: DRAFT TEMPLATE — requires qualified lawyer to review and finalize before use.**

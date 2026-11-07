@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "审计结果记录", en: "Audit Result 0902" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - audit/fusion-health-audit-result-0902.md
+---
+
 # Fusion-Health 架构审计报告 v2
 
 **审计身份**: 外部独立架构审计师 (批判性, 无包容)

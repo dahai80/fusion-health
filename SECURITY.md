@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "安全说明", en: "Security" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - SECURITY.md
+---
+
 # Security Policy
 
 ## Reporting a Vulnerability

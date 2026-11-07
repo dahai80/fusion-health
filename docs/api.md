@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/api-reference
+product: fusion-health
+class: app
+entry: service
+doc_type: api-reference
+title: { zh: "Python 调用层 API", en: "Python Client API" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - docs/api.md
+---
+
 # Fusion-Health API Reference
 
 ---

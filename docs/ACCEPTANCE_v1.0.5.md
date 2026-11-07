@@ -1,3 +1,19 @@
+---
+doc_id: fusion-health/guide
+product: fusion-health
+class: app
+entry: service
+doc_type: guide
+title: { zh: "v1.0.5 验收记录", en: "v1.0.5 Acceptance Record" }
+audience: engineer
+status: draft
+version: 1.2.6
+updated: 2026-11-07
+owner: @dahai
+source_of_truth:
+  - docs/ACCEPTANCE_v1.0.5.md
+---
+
 # Fusion-Health v1.0.5 核心特性验收报告
 
 > 验收日期：2026-08-07
