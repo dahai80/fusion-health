@@ -19,6 +19,11 @@ jobs:
   # `paths-ignore` would remove the checks entirely and block merge.
   changes:
     runs-on: ubuntu-latest
+    # paths-filter reads PR changed files via the API — default token needs
+    # explicit pull-requests: read (fails with "not accessible by integration")
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
