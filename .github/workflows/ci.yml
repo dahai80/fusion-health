@@ -6,8 +6,37 @@ on:
   pull_request:
     branches: [main]
 
+# fusion#2 CI retrofit (issue #38): cancel superseded runs on the same
+# branch/PR instead of queueing another full matrix behind the previous one
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # fusion#2 CI retrofit (issue #38): docs/comments-only changes skip the
+  # test jobs. Job-level conditional (not `paths-ignore`) so required checks
+  # still report — skipped counts as success for branch protection, whereas
+  # `paths-ignore` would remove the checks entirely and block merge.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'fusion_health/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'pyproject.toml'
+              - '.github/workflows/ci.yml'
+
   lint-test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,6 +49,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install fusion-core (in-tree dependency, not on PyPI)
         run: pip install git+https://github.com/dahai80/fusion-core.git
