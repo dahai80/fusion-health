@@ -313,6 +313,11 @@ fusion-health tui
 
 ## Changelog
 
+### v1.2.7 — Docs-system v1.1 contract + CI efficiency retrofit (issue #38)
+
+- **Docs-system adoption**: `docs/*` pages (`product-page`, `get-started`, `api-reference`, `config-reference`, `architecture`, `troubleshooting`) with 12-key frontmatter, `ci/validate_docs.py` gating markdown PRs (`.github/workflows/docs.yml`), and this Keep-a-Changelog `CHANGELOG.md`.
+- **CI retrofit** (fixes #38, per fusion#2 meta-tracker): superseded workflow runs are cancelled (`concurrency` + `cancel-in-progress: true` on `ci.yml` and `docs.yml`); pip caching keyed on `pyproject.toml`; docs-only PRs skip the test jobs via a `dorny/paths-filter` job-level gate (required checks still report). Test sharding and a tiered nightly gate were assessed and not applied — the suite is 256 tests / ~4 min, under the ~5 min threshold.
+
 ### v1.2.6 — Web console UI (issue #34)
 
 Closes the web-surface gap (P2 audit finding): the API surface is now reachable from a browser at `http://127.0.0.1:11469/ui` — no external host, no build step.

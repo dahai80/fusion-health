@@ -313,6 +313,11 @@ fusion-health tui
 
 ## 更新日志
 
+### v1.2.7 — 文档系统 v1.1 契约 + CI 效率改造（issue #38）
+
+- **文档系统接入**：新增 `docs/*` 页面（`product-page`、`get-started`、`api-reference`、`config-reference`、`architecture`、`troubleshooting`），带 12 键 frontmatter；`ci/validate_docs.py` 在 CI 中校验 markdown PR（`.github/workflows/docs.yml`）；启用 Keep-a-Changelog 格式的 `CHANGELOG.md`。
+- **CI 效率改造**（修复 #38，对应 fusion#2 清单）：被取代的工作流运行自动取消（`ci.yml` 与 `docs.yml` 加 `concurrency` + `cancel-in-progress: true`）；pip 缓存按 `pyproject.toml` 键控；纯文档 PR 通过 `dorny/paths-filter` 任务级门控跳过测试任务（必需检查仍会上报）。测试分片与分层夜间门控已评估未采用——当前套件 256 个测试 / 约 4 分钟，低于约 5 分钟阈值。
+
 ### v1.2.6 — Web 控制台（issue #34）
 
 补齐 web 能力缺口（P2 审计发现）：API 面现在可通过浏览器访问 `http://127.0.0.1:11469/ui` — 无外部宿主、无构建步骤。
