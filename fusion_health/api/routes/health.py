@@ -52,7 +52,9 @@ async def health_check(request: Request):
     if config is not None:
         models_url = f"{config.mlx_url.rstrip('/')}/models"
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            # trust_env=False: a localhost probe must never go through a
+            # system/env proxy (macOS sysconf proxy would 502 the probe)
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 headers: dict[str, str] = {}
                 if config.mlx_route:
                     headers["X-Fusion-Route"] = config.mlx_route
@@ -90,7 +92,9 @@ async def readiness(request: Request):
     if config is not None:
         models_url = f"{config.mlx_url.rstrip('/')}/models"
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            # trust_env=False: a localhost probe must never go through a
+            # system/env proxy (macOS sysconf proxy would 502 the probe)
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as client:
                 headers: dict[str, str] = {}
                 if config.mlx_route:
                     headers["X-Fusion-Route"] = config.mlx_route
